@@ -2,6 +2,7 @@
 import os
 import subprocess
 import logging
+import json
 from dotenv import load_dotenv
 
 # Instructions:
@@ -22,12 +23,24 @@ def run_gh_command(command):
         logger.error(f"Command failed: {command}\nError: {e.stderr}")
         raise
 
+def create_labels(repo, labels):
+    """Create labels in the repository."""
+    for label in labels:
+        command = f"gh label create \"{label}\" --repo {repo} --color 0052CC --description \"Status label\""
+        try:
+            run_gh_command(command)
+            logger.info(f"Created label: {label}")
+        except:
+            logger.info(f"Label {label} already exists")
+
 def create_github_project(repo, project_name):
     """Create a GitHub Projects board."""
-    command = f"gh project create --owner {repo.split('/')[0]} --title \"{project_name}\""
-    project_number = run_gh_command(command)
+    command = f"gh project create --owner @me --title \"{project_name}\" --format json"
+    project_output = run_gh_command(command)
+    project_data = json.loads(project_output)
+    project_number = str(project_data['number'])
     logger.info(f"Created project: {project_name}, Number: {project_number}")
-    return project_number.split()[-1]  # Extract project number
+    return project_number
 
 def add_columns(project_number, repo, columns):
     """Add columns to the project board."""
@@ -36,28 +49,23 @@ def add_columns(project_number, repo, columns):
         run_gh_command(command)
         logger.info(f"Added column: {column_name}")
 
-def create_issues(repo, project_number, issues):
-    """Create issues and assign to To Do column."""
+def create_issues(repo, issues):
+    """Create issues and assign To Do label."""
     for issue in issues:
         title = issue['title']
         command = f"gh issue create --repo {repo} --title \"{title}\" --body \"Auto-generated issue for agent project\" --label \"To Do\""
         issue_number = run_gh_command(command)
         logger.info(f"Created issue: {title}, Number: {issue_number}")
-        # Assign to project
-        command = f"gh project item-add {project_number} --owner {repo.split('/')[0]} --url {issue_number}"
-        run_gh_command(command)
-        logger.info(f"Assigned issue {title} to project")
 
 def main():
-    """Automate GitHub Projects setup for job_application_agent."""
+    """Automate GitHub Issues setup for job_application_agent."""
     load_dotenv()
     github_token = os.getenv('GH_TOKEN')
     if not github_token:
         raise ValueError("GH_TOKEN not found in .env")
 
     repo = os.getenv('GITHUB_REPOSITORY', 'your-username/job_application_agent')
-    project_name = "Agent Development Board"
-    columns = ["To Do", "In Progress", "Done"]
+    labels = ["To Do", "In Progress", "Done"]
     issues = [
         {"title": "Set up project structure and .env for APIs"},
         {"title": "Implement multi-user Gmail OAuth"},
@@ -70,13 +78,11 @@ def main():
     ]
 
     try:
-        # Create project
-        project_number = create_github_project(repo, project_name)
-        # Add columns
-        add_columns(project_number, repo, columns)
+        # Create labels
+        create_labels(repo, labels)
         # Create and assign issues
-        create_issues(repo, project_number, issues)
-        logger.info("GitHub Projects setup complete")
+        create_issues(repo, issues)
+        logger.info("GitHub Issues setup complete")
     except Exception as e:
         logger.error(f"Setup failed: {e}")
 
