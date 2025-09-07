@@ -1,0 +1,54 @@
+name: Test and Lint
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      HUGGINGFACE_API_KEY: ${{ secrets.HUGGINGFACE_API_KEY }}
+      GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+      GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+      AYOBA_API_TOKEN: ${{ secrets.AYOBA_API_TOKEN }}
+      SMTP_USER: ${{ secrets.SMTP_USER }}
+      SMTP_PASS: ${{ secrets.SMTP_PASS }}
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install flake8 pytest
+        python -m spacy download en_core_web_sm
+    - name: Lint with flake8
+      run: |
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    - name: Run all tests
+      run: |
+        pytest tests/ -v
+    - name: Run resume-specific tests
+      run: |
+        pytest tests/test_resume.py tests/test_resume_parser.py -v
+    - name: Test resume generation integration
+      run: |
+        python -c "
+        import os
+        if os.getenv('HUGGINGFACE_API_KEY'):
+            print('Testing resume generation with API key')
+            import resume_tool
+            job = {'job_title': 'Test Developer', 'skills': ['Python'], 'employer_email': 'test@company.com', 'email_id': 'test'}
+            result = resume_tool.generate_resume(job)
+            print('Resume generation successful:', 'content' in result)
+        else:
+            print('Skipping API-dependent tests - no HUGGINGFACE_API_KEY')
+        "
