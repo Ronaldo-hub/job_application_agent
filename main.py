@@ -8,6 +8,10 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+# Set up logging first
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Automatic conversation logging
 def log_conversation_entry(entry_type, content, details=None):
     """Automatically log conversation entries to conversation_log.md"""

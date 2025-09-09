@@ -1,4 +1,5 @@
 import os
+import json
 import sqlite3
 import logging
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -86,6 +87,23 @@ def exchange_code_for_token(code, user_id, redirect_uri='urn:ietf:wg:oauth:2.0:o
 
 def get_credentials(user_id):
     """Get valid credentials for a user, refreshing if necessary."""
+    # Try to load from token.json file first
+    try:
+        with open('token.json', 'r') as f:
+            token_data = json.load(f)
+
+        creds = Credentials.from_authorized_user_info(token_data)
+
+        if creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+            logger.info(f"Refreshed credentials for user {user_id}")
+
+        return creds
+
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        logger.warning(f"Could not load token.json: {e}. Trying database...")
+
+    # Fallback to database
     refresh_token = get_token(user_id)
     if not refresh_token:
         raise ValueError(f"No refresh token found for user {user_id}. Please authorize first.")
@@ -95,6 +113,7 @@ def get_credentials(user_id):
             'refresh_token': refresh_token,
             'client_id': os.getenv('GOOGLE_CLIENT_ID'),
             'client_secret': os.getenv('GOOGLE_CLIENT_SECRET'),
+            'token_uri': 'https://oauth2.googleapis.com/token',
             'scopes': ['https://www.googleapis.com/auth/gmail.readonly']
         })
 
@@ -107,7 +126,7 @@ def get_credentials(user_id):
         logger.error(f"Error getting credentials for user {user_id}: {e}")
         raise
 
-def scan_emails(creds, keywords=['job', 'hiring'], max_results=10, timeout=30, batch_size=5):
+def scan_emails(creds, keywords=['job', 'hiring', 'Our recommendation:'], max_results=10, timeout=30, batch_size=5):
     """Scan Gmail for emails containing job-related keywords with timeout and memory management."""
     try:
         import time
@@ -117,7 +136,7 @@ def scan_emails(creds, keywords=['job', 'hiring'], max_results=10, timeout=30, b
         http = build_http()
         http.timeout = timeout
 
-        service = build('gmail', 'v1', credentials=creds, http=http)
+        service = build('gmail', 'v1', credentials=creds)
         query = ' OR '.join(f'"{kw}"' for kw in keywords)
 
         # Add timeout to message list request
