@@ -84,9 +84,25 @@ class AgentState(TypedDict):
 # Node for Gmail scanning with OAuth integration (Issue #2)
 def scan_gmail(state: AgentState) -> AgentState:
     try:
+        import asyncio
+        # Add timeout wrapper to prevent hanging
         creds = gmail_tool.get_credentials(state['user_id'])
-        state['job_emails'] = gmail_tool.scan_emails(creds)
+
+        # Use asyncio to add timeout to the email scanning
+        async def scan_with_timeout():
+            loop = asyncio.get_event_loop()
+            return await loop.run_in_executor(
+                None,
+                lambda: gmail_tool.scan_emails(creds, timeout=25, max_results=20)  # Reduced timeout and results
+            )
+
+        # Run with 30 second timeout
+        state['job_emails'] = asyncio.run(asyncio.wait_for(scan_with_timeout(), timeout=30.0))
         logger.info(f"Scanned emails for user {state['user_id']}: {len(state['job_emails'])} found")
+
+    except asyncio.TimeoutError:
+        logger.error(f"Gmail scan timed out for user {state['user_id']}")
+        state['job_emails'] = []
     except Exception as e:
         logger.error(f"Error scanning Gmail for user {state['user_id']}: {e}")
         state['job_emails'] = []

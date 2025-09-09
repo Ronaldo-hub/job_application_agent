@@ -107,37 +107,97 @@ def get_credentials(user_id):
         logger.error(f"Error getting credentials for user {user_id}: {e}")
         raise
 
-def scan_emails(creds, keywords=['job', 'hiring'], max_results=10):
-    """Scan Gmail for emails containing job-related keywords."""
+def scan_emails(creds, keywords=['job', 'hiring'], max_results=10, timeout=30, batch_size=5):
+    """Scan Gmail for emails containing job-related keywords with timeout and memory management."""
     try:
-        service = build('gmail', 'v1', credentials=creds)
+        import time
+        from googleapiclient.http import build_http
+
+        # Create HTTP client with timeout to prevent hanging
+        http = build_http()
+        http.timeout = timeout
+
+        service = build('gmail', 'v1', credentials=creds, http=http)
         query = ' OR '.join(f'"{kw}"' for kw in keywords)
-        results = service.users().messages().list(userId='me', q=query, maxResults=max_results).execute()
+
+        # Add timeout to message list request
+        results = service.users().messages().list(
+            userId='me',
+            q=query,
+            maxResults=max_results
+        ).execute()
+
         messages = results.get('messages', [])
+        if not messages:
+            logger.info("No messages found matching the query")
+            return []
 
         job_emails = []
-        for msg in messages:
-            msg_data = service.users().messages().get(userId='me', id=msg['id']).execute()
-            payload = msg_data['payload']
-            headers = payload['headers']
-            subject = next((h['value'] for h in headers if h['name'] == 'Subject'), '')
-            sender = next((h['value'] for h in headers if h['name'] == 'From'), '')
-            body = get_email_body(payload)
+        processed_count = 0
+        error_count = 0
 
-            if any(kw.lower() in (subject + body).lower() for kw in keywords):
-                job_emails.append({
-                    'id': msg['id'],
-                    'subject': subject,
-                    'sender': sender,
-                    'body': body,
-                    'snippet': msg_data.get('snippet', '')
-                })
+        # Process messages in batches to manage memory usage
+        for i in range(0, len(messages), batch_size):
+            batch = messages[i:i + batch_size]
+            batch_results = []
 
-        logger.info(f"Scanned {len(job_emails)} job-related emails")
+            for msg in batch:
+                try:
+                    # Add timeout to individual message retrieval and use metadata-only format
+                    msg_data = service.users().messages().get(
+                        userId='me',
+                        id=msg['id'],
+                        format='metadata',  # Only get metadata to reduce memory usage
+                        metadataHeaders=['Subject', 'From']
+                    ).execute()
+
+                    payload = msg_data['payload']
+                    headers = payload['headers']
+
+                    subject = next((h['value'] for h in headers if h['name'] == 'Subject'), '')
+                    sender = next((h['value'] for h in headers if h['name'] == 'From'), '')
+
+                    # Get body only if we need full content, otherwise use snippet
+                    if any(kw.lower() in subject.lower() for kw in keywords):
+                        # Get full message for body analysis
+                        full_msg_data = service.users().messages().get(
+                            userId='me',
+                            id=msg['id'],
+                            format='full'
+                        ).execute()
+                        body = get_email_body(full_msg_data['payload'])
+                    else:
+                        body = msg_data.get('snippet', '')
+
+                    if any(kw.lower() in (subject + body).lower() for kw in keywords):
+                        batch_results.append({
+                            'id': msg['id'],
+                            'subject': subject,
+                            'sender': sender,
+                            'body': body,
+                            'snippet': msg_data.get('snippet', '')
+                        })
+
+                    processed_count += 1
+
+                except Exception as msg_error:
+                    error_count += 1
+                    logger.warning(f"Error processing message {msg['id']}: {msg_error}")
+                    continue
+
+            job_emails.extend(batch_results)
+
+            # Add small delay between batches to prevent rate limiting
+            if i + batch_size < len(messages):
+                time.sleep(0.1)
+
+        logger.info(f"Scanned {len(job_emails)} job-related emails from {processed_count} messages ({error_count} errors)")
         return job_emails
+
     except Exception as e:
         logger.error(f"Error scanning emails: {e}")
-        raise
+        # Return empty list instead of raising to allow workflow to continue
+        return []
 
 def get_email_body(payload):
     """Extract email body from payload."""
