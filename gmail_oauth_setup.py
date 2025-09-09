@@ -184,10 +184,11 @@ This step will open your browser for Gmail authorization.
         try:
             from gmail_tool import get_oauth_url, exchange_code_for_token
 
-            # Generate authorization URL
-            auth_url = get_oauth_url('test_user')
+            # Generate authorization URL using out-of-band flow
+            auth_url = get_oauth_url('test_user', 'urn:ietf:wg:oauth:2.0:oob')
             print(f"\n🔗 Authorization URL: {auth_url}")
             print("\n📋 Copy this URL and paste it in your browser")
+            print("   (This will display the authorization code directly in your browser)")
 
             # Get authorization code from user
             auth_code = input("\n🔑 Paste the authorization code here: ").strip()

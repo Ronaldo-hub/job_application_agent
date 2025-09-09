@@ -52,8 +52,8 @@ def get_token(user_id):
         logger.error(f"Error retrieving token for user {user_id}: {e}")
         return None
 
-def get_oauth_url(user_id, redirect_uri='http://localhost:5000/oauth_callback'):
-    """Generate OAuth authorization URL for a user."""
+def get_oauth_url(user_id, redirect_uri='urn:ietf:wg:oauth:2.0:oob'):
+    """Generate OAuth authorization URL for a user using out-of-band flow."""
     try:
         flow = InstalledAppFlow.from_client_secrets_file(
             'credentials.json',
@@ -67,7 +67,7 @@ def get_oauth_url(user_id, redirect_uri='http://localhost:5000/oauth_callback'):
         logger.error(f"Error generating OAuth URL for user {user_id}: {e}")
         raise
 
-def exchange_code_for_token(code, user_id, redirect_uri='http://localhost:5000/oauth_callback'):
+def exchange_code_for_token(code, user_id, redirect_uri='urn:ietf:wg:oauth:2.0:oob'):
     """Exchange authorization code for credentials and store refresh token."""
     try:
         flow = InstalledAppFlow.from_client_secrets_file(
