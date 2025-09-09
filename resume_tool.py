@@ -2,11 +2,15 @@ import json
 import os
 import logging
 import requests
+import spacy
 from docx import Document
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from typing import Dict, List, Optional
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -17,6 +21,13 @@ HUGGINGFACE_API_KEY = os.getenv('HUGGINGFACE_API_KEY')
 if not HUGGINGFACE_API_KEY:
     logger.error("HUGGINGFACE_API_KEY not found in environment variables")
     raise ValueError("HUGGINGFACE_API_KEY is required")
+
+# Load spaCy model
+try:
+    nlp = spacy.load('en_core_web_sm')
+except OSError:
+    logger.error("spaCy model 'en_core_web_sm' not found. Run 'python -m spacy download en_core_web_sm'")
+    raise
 
 # Load master resume
 def load_master_resume() -> Dict:
@@ -30,6 +41,63 @@ def load_master_resume() -> Dict:
     except json.JSONDecodeError as e:
         logger.error(f"Error parsing master_resume.json: {e}")
         raise
+
+def calculate_fit_score(master_resume: Dict, job_details: Dict) -> float:
+    """Calculate fit score between resume and job requirements."""
+    try:
+        # Extract skills from master resume
+        resume_skills = set()
+        if 'skills' in master_resume:
+            resume_skills = set(skill.lower() for skill in master_resume['skills'])
+
+        # Extract requirements from job
+        job_requirements = set()
+        if 'requirements' in job_details:
+            job_requirements = set(req.lower() for req in job_details['requirements'])
+        if 'skills' in job_details:
+            job_requirements.update(set(skill.lower() for skill in job_details['skills']))
+
+        # Extract keywords from job description
+        job_description = job_details.get('description', '')
+        if job_description:
+            doc = nlp(job_description.lower())
+            desc_keywords = set()
+            for token in doc:
+                if token.pos_ in ['NOUN', 'PROPN', 'ADJ'] and len(token.text) > 2 and not token.is_stop:
+                    desc_keywords.add(token.text)
+            job_requirements.update(desc_keywords)
+
+        if not job_requirements:
+            return 0.0
+
+        # Calculate keyword match score
+        matching_skills = resume_skills.intersection(job_requirements)
+        keyword_score = len(matching_skills) / len(job_requirements) * 100
+
+        # Calculate TF-IDF similarity for description
+        resume_text = ' '.join(master_resume.get('skills', []))
+        job_text = job_description
+
+        if resume_text and job_text:
+            vectorizer = TfidfVectorizer(stop_words='english')
+            try:
+                tfidf_matrix = vectorizer.fit_transform([resume_text, job_text])
+                similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
+                similarity_score = similarity * 100
+            except:
+                similarity_score = 0.0
+        else:
+            similarity_score = 0.0
+
+        # Weighted average
+        final_score = (keyword_score * 0.7) + (similarity_score * 0.3)
+
+        logger.info(f"Fit score for {job_details.get('title', 'Unknown')}: {final_score:.1f}%")
+        return final_score
+
+    except Exception as e:
+        logger.error(f"Error calculating fit score: {e}")
+        return 0.0
 
 def generate_resume_content(master_resume: Dict, job_details: Dict) -> str:
     """Generate ATS-optimized resume content using Hugging Face Llama 3.1 8B-Instruct."""
@@ -203,10 +271,26 @@ def generate_resume(job_details: Dict) -> Dict:
     """Main function to generate ATS-optimized resume."""
     try:
         master_resume = load_master_resume()
+
+        # Check fit score first
+        fit_score = calculate_fit_score(master_resume, job_details)
+        if fit_score < 90:
+            logger.info(f"Skipping resume generation for {job_details.get('title', 'Unknown')} - fit score: {fit_score:.1f}%")
+            return {
+                'skipped': True,
+                'fit_score': fit_score,
+                'reason': f'Fit score {fit_score:.1f}% below 90% threshold',
+                'content': '',
+                'word_file': '',
+                'pdf_file': '',
+                'job_title': job_details.get('title', ''),
+                'company': job_details.get('company', '')
+            }
+
         content = generate_resume_content(master_resume, job_details)
 
         # Generate unique filename based on job
-        job_id = job_details.get('email_id', 'unknown')
+        job_id = job_details.get('id', 'unknown')
         base_filename = f"resume_{job_id}"
 
         word_file = create_word_resume(content, base_filename)
@@ -216,8 +300,9 @@ def generate_resume(job_details: Dict) -> Dict:
             'content': content,
             'word_file': word_file,
             'pdf_file': pdf_file,
-            'job_title': job_details.get('job_title', ''),
-            'employer_email': job_details.get('employer_email', '')
+            'job_title': job_details.get('title', ''),
+            'company': job_details.get('company', ''),
+            'fit_score': fit_score
         }
     except Exception as e:
         logger.error(f"Error generating resume: {e}")
@@ -226,8 +311,8 @@ def generate_resume(job_details: Dict) -> Dict:
             'content': '',
             'word_file': '',
             'pdf_file': '',
-            'job_title': job_details.get('job_title', ''),
-            'employer_email': job_details.get('employer_email', '')
+            'job_title': job_details.get('title', ''),
+            'company': job_details.get('company', '')
         }
 
 def generate_resumes_for_jobs(parsed_jobs: List[Dict]) -> List[Dict]:
@@ -237,3 +322,19 @@ def generate_resumes_for_jobs(parsed_jobs: List[Dict]) -> List[Dict]:
         resume = generate_resume(job)
         resumes.append(resume)
     return resumes
+
+def filter_high_fit_jobs(jobs: List[Dict]) -> tuple:
+    """Filter jobs into high-fit and low-fit categories."""
+    master_resume = load_master_resume()
+    high_fit = []
+    low_fit = []
+
+    for job in jobs:
+        fit_score = calculate_fit_score(master_resume, job)
+        job['fit_score'] = fit_score
+        if fit_score >= 90:
+            high_fit.append(job)
+        else:
+            low_fit.append(job)
+
+    return high_fit, low_fit

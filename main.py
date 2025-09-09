@@ -1,15 +1,21 @@
 import os
 import logging
+import json
 from dotenv import load_dotenv
 from langchain_core.messages import BaseMessage
 from langgraph.graph import StateGraph, START, END
 from typing import TypedDict, List
+import asyncio
 import gmail_tool
 import parser_tool
 import resume_tool
 import audit_tool
 import resume_parser
 import documents
+import job_search
+import course_suggestions
+import discord_bot
+import colab_integration
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -20,25 +26,29 @@ load_dotenv()
 
 # Check for required environment variables
 required_vars = [
-    'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'AYOBA_API_TOKEN',
+    'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'DISCORD_BOT_TOKEN',
     'SMTP_USER', 'SMTP_PASS', 'XAI_API_KEY', 'HUGGINGFACE_API_KEY'
 ]
 missing_vars = [var for var in required_vars if not os.getenv(var)]
 if missing_vars:
-    raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}")
+    logger.warning(f"Missing optional environment variables: {', '.join(missing_vars)}")
+    # Don't raise error, allow partial functionality
 
 # Define AgentState
 class AgentState(TypedDict):
     messages: List[BaseMessage]
     user_id: str
     job_emails: List[dict]
+    api_jobs: List[dict]
     parsed_jobs: List[dict]
     parsed_resume: Dict
     generated_resumes: List[dict]
     audited_resumes: List[dict]
     selected_documents: List[dict]
     sent_emails: List[str]
-    ayoba_responses: List[str]
+    discord_notifications: List[str]
+    course_suggestions: Dict[str, List[Dict]]
+    skill_gaps: List[str]
 
 # Node for Gmail scanning with OAuth integration (Issue #2)
 def scan_gmail(state: AgentState) -> AgentState:
@@ -61,10 +71,27 @@ def parse_jobs(state: AgentState) -> AgentState:
         state['parsed_jobs'] = []
     return state
 
-# Node for resume generation using Grok 3 (Issue #4)
+# Node for resume generation (using Colab for processing)
 def generate_resumes(state: AgentState) -> AgentState:
     try:
-        state['generated_resumes'] = resume_tool.generate_resumes_for_jobs(state['parsed_jobs'])
+        # Filter high-fit jobs (fit_score >= 90)
+        high_fit_jobs = [job for job in state['parsed_jobs'] if job.get('fit_score', 0) >= 90]
+
+        if not high_fit_jobs:
+            logger.info("No high-fit jobs found, skipping resume generation")
+            state['generated_resumes'] = []
+            return state
+
+        # Use Colab for resume generation if available
+        if colab_integration.check_colab_status():
+            logger.info("Using Colab for resume generation")
+            state['generated_resumes'] = asyncio.run(colab_integration.submit_resume_generation_task(
+                high_fit_jobs, state['parsed_resume']
+            )) or []
+        else:
+            logger.info("Colab not available, using local resume generation")
+            state['generated_resumes'] = resume_tool.generate_resumes_for_jobs(high_fit_jobs)
+
         logger.info(f"Generated {len(state['generated_resumes'])} resumes")
     except Exception as e:
         logger.error(f"Error generating resumes: {e}")
@@ -116,11 +143,123 @@ def send_emails(state: AgentState) -> AgentState:
     state['sent_emails'] = []  # Placeholder
     return state
 
-# Placeholder node for Ayoba integration (Issue #6)
-def ayoba_integration(state: AgentState) -> AgentState:
-    # TODO: Integrate with Ayoba chatbot API for responses
-    # Issue #6: Add Ayoba API integration
-    state['ayoba_responses'] = []  # Placeholder
+# Node for job search from APIs (using Colab for processing)
+def search_api_jobs(state: AgentState) -> AgentState:
+    try:
+        # Use search parameters from messages or default
+        search_params = {'keywords': 'software engineer', 'location': 'remote'}  # Default
+
+        # Extract from messages if available
+        if state['messages']:
+            last_message = state['messages'][-1]
+            if hasattr(last_message, 'content'):
+                content = last_message.content
+                # Simple parsing for keywords and location
+                if 'keywords:' in content:
+                    search_params['keywords'] = content.split('keywords:')[1].split()[0]
+                if 'location:' in content:
+                    search_params['location'] = content.split('location:')[1].split()[0]
+
+        # Check if Colab is available, otherwise fallback to local processing
+        if colab_integration.check_colab_status():
+            logger.info("Using Colab for job search")
+            state['api_jobs'] = asyncio.run(colab_integration.submit_job_search_task(search_params)) or []
+        else:
+            logger.info("Colab not available, using local job search")
+            state['api_jobs'] = asyncio.run(job_search.search_jobs_async(search_params))
+
+        logger.info(f"Searched {len(state['api_jobs'])} jobs from APIs")
+    except Exception as e:
+        logger.error(f"Error searching API jobs: {e}")
+        state['api_jobs'] = []
+    return state
+
+# Node for job fit analysis (using Colab for NLP processing)
+def analyze_job_fit(state: AgentState) -> AgentState:
+    try:
+        all_jobs = state['parsed_jobs'] + state['api_jobs']
+
+        # Use Colab for resource-intensive fit analysis if available
+        if colab_integration.check_colab_status():
+            logger.info("Using Colab for fit analysis")
+            analysis_result = asyncio.run(colab_integration.submit_fit_analysis_task(
+                all_jobs, state['parsed_resume']
+            ))
+
+            if analysis_result:
+                high_fit_jobs = analysis_result.get('high_fit_jobs', [])
+                low_fit_jobs = analysis_result.get('low_fit_jobs', [])
+                state['skill_gaps'] = analysis_result.get('skill_gaps', [])
+                state['parsed_jobs'] = high_fit_jobs + low_fit_jobs
+            else:
+                # Fallback to local processing
+                logger.warning("Colab fit analysis failed, using local processing")
+                high_fit, low_fit = resume_tool.filter_high_fit_jobs(all_jobs)
+                state['parsed_jobs'] = high_fit + low_fit
+                state['skill_gaps'] = course_suggestions.analyze_skill_gaps(
+                    state['parsed_resume'],
+                    [req for job in low_fit for req in job.get('requirements', [])]
+                )
+        else:
+            logger.info("Colab not available, using local fit analysis")
+            high_fit, low_fit = resume_tool.filter_high_fit_jobs(all_jobs)
+            state['parsed_jobs'] = high_fit + low_fit
+            state['skill_gaps'] = course_suggestions.analyze_skill_gaps(
+                state['parsed_resume'],
+                [req for job in low_fit for req in job.get('requirements', [])]
+            )
+
+        logger.info(f"Analyzed fit for {len(all_jobs)} jobs, found {len(state['skill_gaps'])} skill gaps")
+    except Exception as e:
+        logger.error(f"Error analyzing job fit: {e}")
+        state['skill_gaps'] = []
+    return state
+
+# Node for course suggestions (using Colab for processing)
+def suggest_courses(state: AgentState) -> AgentState:
+    try:
+        if not state['skill_gaps']:
+            logger.info("No skill gaps found, skipping course suggestions")
+            state['course_suggestions'] = {}
+            return state
+
+        # Use Colab for course suggestions if available
+        if colab_integration.check_colab_status():
+            logger.info("Using Colab for course suggestions")
+            state['course_suggestions'] = asyncio.run(colab_integration.submit_course_suggestions_task(
+                state['skill_gaps']
+            )) or {}
+        else:
+            logger.info("Colab not available, using local course suggestions")
+            state['course_suggestions'] = asyncio.run(
+                course_suggestions.get_course_suggestions(state['skill_gaps'])
+            )
+
+        logger.info(f"Generated course suggestions for {len(state['skill_gaps'])} skill gaps")
+    except Exception as e:
+        logger.error(f"Error generating course suggestions: {e}")
+        state['course_suggestions'] = {}
+    return state
+
+# Node for Discord notifications
+def discord_notifications(state: AgentState) -> AgentState:
+    try:
+        notifications = []
+
+        # Notify about generated resumes
+        for resume in state['generated_resumes']:
+            if 'skipped' not in resume:
+                notifications.append(f"Resume generated for {resume.get('job_title', 'Unknown')} at {resume.get('company', 'Unknown')}")
+
+        # Notify about course suggestions
+        if state['course_suggestions']:
+            notifications.append(f"Found course suggestions for {len(state['course_suggestions'])} skill gaps")
+
+        state['discord_notifications'] = notifications
+        logger.info(f"Prepared {len(notifications)} Discord notifications")
+    except Exception as e:
+        logger.error(f"Error preparing Discord notifications: {e}")
+        state['discord_notifications'] = []
     return state
 
 # Build the LangGraph workflow
@@ -128,24 +267,31 @@ workflow = StateGraph(AgentState)
 
 # Add nodes
 workflow.add_node("scan_gmail", scan_gmail)
+workflow.add_node("search_api_jobs", search_api_jobs)
 workflow.add_node("parse_jobs", parse_jobs)
 workflow.add_node("parse_resume", parse_resume)
+workflow.add_node("analyze_job_fit", analyze_job_fit)
 workflow.add_node("generate_resumes", generate_resumes)
 workflow.add_node("audit_resumes", audit_resumes)
 workflow.add_node("select_documents", select_documents)
+workflow.add_node("suggest_courses", suggest_courses)
 workflow.add_node("send_emails", send_emails)
-workflow.add_node("ayoba_integration", ayoba_integration)
+workflow.add_node("discord_notifications", discord_notifications)
 
 # Add edges
 workflow.add_edge(START, "scan_gmail")
+workflow.add_edge("scan_gmail", "search_api_jobs")
 workflow.add_edge("scan_gmail", "parse_jobs")
+workflow.add_edge("search_api_jobs", "parse_jobs")
 workflow.add_edge("parse_jobs", "parse_resume")
-workflow.add_edge("parse_resume", "generate_resumes")
+workflow.add_edge("parse_resume", "analyze_job_fit")
+workflow.add_edge("analyze_job_fit", "generate_resumes")
 workflow.add_edge("generate_resumes", "audit_resumes")
 workflow.add_edge("audit_resumes", "select_documents")
-workflow.add_edge("select_documents", "send_emails")
-workflow.add_edge("send_emails", "ayoba_integration")
-workflow.add_edge("ayoba_integration", END)
+workflow.add_edge("select_documents", "suggest_courses")
+workflow.add_edge("suggest_courses", "send_emails")
+workflow.add_edge("send_emails", "discord_notifications")
+workflow.add_edge("discord_notifications", END)
 
 # Compile the graph
 app = workflow.compile()
@@ -156,13 +302,16 @@ if __name__ == "__main__":
         messages=[],
         user_id="test_user",
         job_emails=[],
+        api_jobs=[],
         parsed_jobs=[],
         parsed_resume={},
         generated_resumes=[],
         audited_resumes=[],
         selected_documents=[],
         sent_emails=[],
-        ayoba_responses=[]
+        discord_notifications=[],
+        course_suggestions={},
+        skill_gaps=[]
     )
     result = app.invoke(initial_state)
     print("Workflow completed:", result)

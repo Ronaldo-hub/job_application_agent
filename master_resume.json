@@ -1,42 +1,210 @@
 {
-  "personal_info": {
-    "name": "Ronald Williams",
-    "email": "ronald.williams@example.com",
-    "phone": "(555) 123-4567",
-    "location": "New York, NY",
-    "linkedin": "linkedin.com/in/ronaldwilliams",
-    "github": "github.com/ronaldwilliams"
+  "name": "Ronald Williams",
+  "title": "Mineral Process Engineering Professional, Project Manager",
+  "contact": {
+    "location": "City of Cape Town, Western Cape, South Africa",
+    "phone": "071 133 7005",
+    "email": "rw126368@gmail.com",
+    "linkedin": "https://www.linkedin.com/in/ronaldwilliams83/"
   },
-  "summary": "Motivated chemical engineering graduate with experience in process optimization and data analysis. Proficient in Python programming and eager to apply technical skills in a professional setting.",
-  "skills": [
-    "Python",
-    "Communication",
-    "Data Analysis",
-    "Chemical Engineering",
-    "Process Optimization",
-    "Microsoft Office",
-    "Team Collaboration",
-    "Problem Solving"
-  ],
-  "experience": [
+  "professional_summary": "Dedicated professional with extensive experience in chemical engineering, hazardous waste management, and process engineering. Served as a chemical engineering intern at the University of Stellenbosch, specializing in hazardous waste management, chemical storeroom management, and reverse osmosis plant maintenance. Engaged in research on mineral processing, e-waste processing, pyrolysis, and water purification. Authored technical reports on gravity separation using a Humphrey Spiral, heat transfer modeling with heat exchangers, ethanol-water separation via batch distillation, and bioreactor operations. Proficient in Mathematics, Organic and Inorganic Chemistry, Reactor Technology, Material Sciences, Particle Technology, Mass Transfer, Heat Transfer, Process Control, Optimization, Thermodynamics, Mineral Processing, Experimental Design, Numerical Methods, Scientific Report Writing, and Project Management. Skilled in problem-solving, presentations, operational oversight, environmental issues, and ISO standards.",
+  "work_experience": [
     {
-      "title": "Chemical Engineering Intern",
-      "company": "ABC Manufacturing",
-      "location": "New York, NY",
-      "start_date": "June 2023",
-      "end_date": "August 2023",
-      "description": "Assisted in process optimization projects, analyzed production data using Python, and collaborated with cross-functional teams to improve efficiency."
+      "job_title": "Driver",
+      "company": "Self-employed",
+      "location": "City of Cape Town, Western Cape, South Africa",
+      "dates": "July 2023 – August 2025",
+      "responsibilities": [
+        "Independently managed transportation services, ensuring timely and reliable operations."
+      ]
+    },
+    {
+      "job_title": "Supervisor and Fieldworker",
+      "company": "Statssa (Contract)",
+      "location": "Western Cape, South Africa",
+      "dates": "February 2022 – May 2022",
+      "responsibilities": [
+        "Facilitated group communication and managed teams during census operations."
+      ]
+    },
+    {
+      "job_title": "Mathematics Tutor",
+      "company": "Macassar Math and Science (Freelance)",
+      "location": "Macassar, South Africa",
+      "dates": "August 2019 – February 2022",
+      "responsibilities": [
+        "Enhanced students' problem-solving abilities through personalized tutoring in mathematics.",
+        "Developed strong interpersonal skills to foster effective learning environments."
+      ]
+    },
+    {
+      "job_title": "Service Ambassador",
+      "company": "Hussar Grill",
+      "location": "Noorder-Paarl Area, South Africa",
+      "dates": "January 2017 – November 2017",
+      "responsibilities": [
+        "Delivered exceptional customer service, strengthening interpersonal communication skills."
+      ]
+    },
+    {
+      "job_title": "Chemical Engineering Intern",
+      "company": "University of Stellenbosch",
+      "location": "Stellenbosch, South Africa",
+      "dates": "May 2015 – August 2016",
+      "responsibilities": [
+        "Managed hazardous waste and developed operating procedures for waste management.",
+        "Oversaw hazardous chemical storeroom and maintained inventory using CIS Pro.",
+        "Assisted in setting up practicals and research projects for final-year students.",
+        "Monitored reverse osmosis water plant, including conductivity measurements and filter maintenance.",
+        "Conducted small-scale building maintenance and created process equipment inventory lists.",
+        "Applied skills in problem-solving, presentations, process engineering, and ISO standards compliance."
+      ]
+    },
+    {
+      "job_title": "Waiter",
+      "company": "Various Restaurants (Cape Town Fish Market, Ocean Basket)",
+      "location": "Stellenbosch and Somerset Mall, South Africa",
+      "dates": "2007 – 2014",
+      "responsibilities": [
+        "Provided high-quality hospitality service across multiple establishments, including Cape Town Fish Market and Ocean Basket.",
+        "Demonstrated adaptability in fast-paced environments (Roles ended due to store closures, contract expirations, or study obligations)."
+      ]
+    }
+  ],
+  "academic_laboratory_experience": [
+    {
+      "project_title": "Humphrey Spiral Gravity Separation",
+      "category": "Mineral Processing",
+      "description": "Investigated the Humphrey Spiral for separating magnetite from silica sand. Authored a report evaluating separation efficiency (85% magnetite recovery at 1.5 t/h feed rate, 10 L/min water flow), optimizing operational parameters, and addressing challenges like clogging at higher feed rates. Used XRF for sample analysis and applied principles from particle technology coursework."
+    },
+    {
+      "project_title": "Particle Technology Experiments",
+      "category": "Particle Technology",
+      "description": "Analyzed ball mill setups for particle size reduction; conducted smelting experiments in an arc furnace; separated minerals based on electrostatic properties; performed solid-state analysis using SEM-EDS, XRF, and XRD; analyzed sedimentation using camera imaging and MATLAB code; authored reports on mineral liberation and processing."
+    },
+    {
+      "project_title": "Bioprocess Engineering",
+      "category": "Bioprocess Engineering",
+      "description": "Generated a report on bioreactor operations; extracted DNA and cultured microorganisms on agar plates."
+    },
+    {
+      "project_title": "Heat and Mass Transfer",
+      "category": "Heat and Mass Transfer",
+      "description": "Modeled heat transfer with heat exchangers; conducted ethanol-water separation via batch distillation; performed experiments on heat conduction, convection, radiation, and mass transfer operations like crystallization and distillation."
+    },
+    {
+      "project_title": "Chemistry Practicals",
+      "category": "Chemistry",
+      "description": "Conducted organic, inorganic, and analytical chemistry experiments, including titrations, syntheses, and spectroscopic analyses (UV-Vis, FTIR)."
+    },
+    {
+      "project_title": "Reaction Engineering and Process Control",
+      "category": "Reaction Engineering",
+      "description": "Designed and simulated chemical reactors; performed experiments on reaction kinetics and control systems; modeled plug flow reactor (PFR) and continuous stirred-tank reactor (CSTR); applied experimental design and statistical analysis using MATLAB."
+    },
+    {
+      "project_title": "Fluid Mechanics and Thermodynamics",
+      "category": "Fluid Mechanics and Thermodynamics",
+      "description": "Conducted practicals on fluid dynamics, pump performance, specific heat measurements, and phase equilibria studies."
     }
   ],
   "education": [
     {
-      "degree": "Bachelor of Science in Chemical Engineering",
-      "institution": "State University",
-      "location": "New York, NY",
-      "graduation_date": "May 2023",
-      "gpa": "3.7"
+      "degree": "BEng Process Engineering (Incomplete)",
+      "institution": "University of Stellenbosch",
+      "location": "Stellenbosch, South Africa",
+      "dates": "2005 – 2008, 2010 – 2011",
+      "details": "Gained expertise in documentation, ISO standards, environmental issues, operational oversight, and agile project management."
+    },
+    {
+      "degree": "Post Matric Programme",
+      "institution": "Schimathus",
+      "location": "South Africa",
+      "dates": "2004",
+      "details": "Achieved distinction in Mathematics HG and B average in Science for senior certificate exam."
+    },
+    {
+      "degree": "Fitting and Turning (Practical in the Workshop)",
+      "institution": "Westlake Technical College",
+      "location": "South Africa",
+      "dates": "2003",
+      "details": "Learned turning on a lathe machine, arc welding, and MIG welding. Skills: Fault Finding."
+    },
+    {
+      "degree": "High School",
+      "institution": "Hottentots Holland High",
+      "location": "South Africa",
+      "dates": "1997 – 2001",
+      "details": ""
     }
   ],
-  "certifications": [],
-  "projects": []
+  "certifications": [
+    {
+      "title": "Certificate in First Aid Level 1",
+      "issuer": "Dynamikos",
+      "dates": "2016",
+      "details": ""
+    },
+    {
+      "title": "Short Course in Basic Fire Fighting",
+      "issuer": "Ingozi Management",
+      "dates": "2016",
+      "details": ""
+    },
+    {
+      "title": "Certificate of Competence in Hazardous Waste Management Training Program",
+      "issuer": "Institute of Waste Management of South Africa",
+      "dates": "2015",
+      "details": "Course discussed policies governing waste management in South Africa and procedures to manage hazardous waste. Skills: Operational Oversight."
+    }
+  ],
+  "skills": [
+    "Process Engineering",
+    "Hazardous Waste Management",
+    "Hydrometallurgy",
+    "Process Simulation",
+    "Python",
+    "Matlab",
+    "Polymath",
+    "C Programming",
+    "Microsoft Office",
+    "Problem Solving",
+    "Root Cause Analysis",
+    "Data Analytics",
+    "Data-driven Decision Making",
+    "Fault Finding",
+    "Project Management",
+    "Agile Project Management",
+    "Team Management",
+    "Operational Oversight",
+    "Demand Planning",
+    "Presentations",
+    "Report Writing",
+    "Group Communication",
+    "Interpersonal Skills",
+    "ISO Standards",
+    "Environmental Issues",
+    "Documentation",
+    "Chemistry",
+    "Mineral Processing",
+    "Hospitality Service",
+    "Technical Design"
+  ],
+  "references": [
+    {
+      "name": "Alvin Peterson",
+      "relation": "Senior Technical Officer at Process Engineering department of the University of Stellenbosch",
+      "contact": "Email: petersenja@sun.ac.za, Phone: +27 21 808 3804"
+    },
+    {
+      "name": "Beulah",
+      "relation": "Line Manager at Statssa when I was a supervisor doing census work",
+      "contact": "Cell: +27 61 027 5486"
+    },
+    {
+      "name": "Mr. Devon Matthews",
+      "relation": "Owner of Hussar Grill in Paarl",
+      "contact": "Phone: 021-8630466"
+    }
+  ]
 }
