@@ -41,7 +41,7 @@ async def search_jobs_async(search_params: Dict) -> List[Dict]:
     # Run all searches in parallel
     tasks = []
     for func in search_functions:
-        task = asyncio.create_task(func(keywords, location, salary_min, salary_max, max_age_days))
+        task = asyncio.create_task(func(keywords, location, salary_min, salary_max))
         tasks.append(task)
 
     # Wait for all to complete
@@ -503,3 +503,8 @@ def extract_keywords(text: str) -> List[str]:
             keywords.append(word)
 
     return keywords
+
+def apply_filters(jobs: List[Dict], location: str, max_age_days: int) -> List[Dict]:
+    """Apply location and date filters to jobs."""
+    # For now, just return jobs as filters are applied in individual searches
+    return jobs

@@ -1,10 +1,44 @@
 import os
 import logging
 import json
+import operator
+from datetime import datetime
 from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Automatic conversation logging
+def log_conversation_entry(entry_type, content, details=None):
+    """Automatically log conversation entries to conversation_log.md"""
+    try:
+        log_file = "conversation_log.md"
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # Create log entry
+        log_entry = f"\n## {entry_type} - {timestamp}\n"
+        log_entry += f"**Content**: {content}\n"
+
+        if details:
+            log_entry += f"**Details**: {details}\n"
+
+        log_entry += "---\n"
+
+        # Append to log file
+        with open(log_file, 'a', encoding='utf-8') as f:
+            f.write(log_entry)
+
+        logger.info(f"Conversation logged: {entry_type}")
+
+    except Exception as e:
+        logger.error(f"Failed to log conversation: {e}")
+
+# Log session start
+log_conversation_entry("Session Start", "Job Application Agent analysis session initiated", "Dependencies installed, app execution tested, performance analysis completed")
+
 from langchain_core.messages import BaseMessage
-from langgraph.graph import StateGraph, START, END
-from typing import TypedDict, List
+from langgraph.graph import StateGraph, START, END, add_messages
+from typing import TypedDict, List, Dict, Annotated
 import asyncio
 import gmail_tool
 import parser_tool
@@ -21,9 +55,6 @@ import colab_integration
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Load environment variables
-load_dotenv()
-
 # Check for required environment variables
 required_vars = [
     'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'DISCORD_BOT_TOKEN',
@@ -36,19 +67,19 @@ if missing_vars:
 
 # Define AgentState
 class AgentState(TypedDict):
-    messages: List[BaseMessage]
-    user_id: str
-    job_emails: List[dict]
-    api_jobs: List[dict]
-    parsed_jobs: List[dict]
-    parsed_resume: Dict
-    generated_resumes: List[dict]
-    audited_resumes: List[dict]
-    selected_documents: List[dict]
-    sent_emails: List[str]
-    discord_notifications: List[str]
-    course_suggestions: Dict[str, List[Dict]]
-    skill_gaps: List[str]
+    messages: Annotated[List[BaseMessage], add_messages]
+    user_id: Annotated[str, lambda x, y: y]
+    job_emails: Annotated[List[dict], operator.add]
+    api_jobs: Annotated[List[dict], operator.add]
+    parsed_jobs: Annotated[List[dict], operator.add]
+    parsed_resume: Annotated[Dict, lambda x, y: y]
+    generated_resumes: Annotated[List[dict], operator.add]
+    audited_resumes: Annotated[List[dict], operator.add]
+    selected_documents: Annotated[List[dict], operator.add]
+    sent_emails: Annotated[List[str], operator.add]
+    discord_notifications: Annotated[List[str], operator.add]
+    course_suggestions: Annotated[Dict[str, List[Dict]], lambda x, y: y]
+    skill_gaps: Annotated[List[str], operator.add]
 
 # Node for Gmail scanning with OAuth integration (Issue #2)
 def scan_gmail(state: AgentState) -> AgentState:
