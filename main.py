@@ -368,6 +368,11 @@ def generate_game_recommendations(state: AgentState) -> AgentState:
             state['game_recommendations'] = {}
             return state
 
+        # Log game recommendations generation
+        user_id = state.get('user_id', 'unknown')
+        skills_count = len(resume_skills)
+        log_conversation_entry("Game Recommendations", f"Generated game recommendations for user {user_id}", f"Skills analyzed: {skills_count}, Games: Virtonomics, Sim Companies, CWetlands, The Blue Connection")
+
         game_recommendations = {}
 
         # Get recommendations from each game
@@ -469,6 +474,11 @@ def award_activity_tokens(state: AgentState) -> AgentState:
 
         state['token_activities'] = token_activities
         logger.info(f"Awarded tokens for {len(token_activities)} activities to user {user_id}")
+
+        # Log token activities
+        if token_activities:
+            total_tokens = sum(activity.get('tokens_earned', 0) for activity in token_activities)
+            log_conversation_entry("Token Awards", f"User {user_id} earned {total_tokens} tokens", f"Activities: {len(token_activities)}, Total tokens: {total_tokens}")
 
     except Exception as e:
         logger.error(f"Error awarding activity tokens: {e}")

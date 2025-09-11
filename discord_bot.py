@@ -42,6 +42,31 @@ except ImportError:
     logging.warning("Game activity tracker not available")
     game_activity_tracker = None
 
+# Import conversation logging function
+try:
+    from main import log_conversation_entry
+except ImportError:
+    # Define fallback logging function if main.py not available
+    def log_conversation_entry(entry_type, content, details=None):
+        """Fallback conversation logging function."""
+        try:
+            log_file = "conversation_log.md"
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            log_entry = f"\n## {entry_type} - {timestamp}\n"
+            log_entry += f"**Content**: {content}\n"
+            if details:
+                log_entry += f"**Details**: {details}\n"
+            log_entry += "---\n"
+
+            with open(log_file, 'a', encoding='utf-8') as f:
+                f.write(log_entry)
+
+            logging.info(f"Conversation logged: {entry_type}")
+        except Exception as e:
+            logging.error(f"Failed to log conversation: {e}")
+
 # Load environment variables
 load_dotenv()
 
@@ -85,6 +110,11 @@ async def search_jobs(
 ):
     """Search for jobs and analyze fit."""
     await interaction.response.defer()
+
+    # Log the conversation
+    user_info = f"User: {interaction.user.display_name} ({interaction.user.id})"
+    search_details = f"Keywords: '{keywords}', Location: '{location or 'Not specified'}', Max Age: {max_age_days} days"
+    log_conversation_entry("Job Search Request", f"{user_info} searched for jobs", search_details)
 
     try:
         # Search jobs using APIs
@@ -727,6 +757,10 @@ async def my_progress(interaction: discord.Interaction):
     """Show user's game progress and achievements."""
     await interaction.response.defer()
 
+    # Log the conversation
+    user_info = f"User: {interaction.user.display_name} ({interaction.user.id})"
+    log_conversation_entry("Progress Check", f"{user_info} requested progress report", "Viewing achievements and statistics")
+
     try:
         user_id = str(interaction.user.id)
 
@@ -817,6 +851,11 @@ async def track_activity(
 ):
     """Track a game activity for testing purposes."""
     await interaction.response.defer()
+
+    # Log the conversation
+    user_info = f"User: {interaction.user.display_name} ({interaction.user.id})"
+    activity_details = f"Game: {game}, Activity: {activity}"
+    log_conversation_entry("Activity Tracking", f"{user_info} tracked game activity", activity_details)
 
     try:
         user_id = str(interaction.user.id)
