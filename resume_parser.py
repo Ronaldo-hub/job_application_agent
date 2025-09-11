@@ -2,9 +2,17 @@ import json
 import os
 import re
 import logging
-from typing import Dict, List, Optional
+from datetime import datetime
+from typing import Dict, List, Optional, Tuple
 import pdfplumber
 from docx import Document
+
+# Import POPIA compliance
+try:
+    import popia_compliance
+except ImportError:
+    logging.warning("POPIA compliance module not available")
+    popia_compliance = None
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -208,15 +216,40 @@ def extract_certifications(text: str) -> List[str]:
 
     return certifications
 
-def parse_resume_file(file_path: str) -> Dict:
-    """Main function to parse resume file (PDF or DOCX)."""
+def parse_resume_file(file_path: str, user_id: str = None, anonymize: bool = True) -> Dict:
+    """Main function to parse resume file (PDF or DOCX) with POPIA compliance."""
     try:
+        # Parse the resume
         if file_path.lower().endswith('.pdf'):
-            return parse_pdf_resume(file_path)
+            parsed_resume = parse_pdf_resume(file_path)
         elif file_path.lower().endswith('.docx'):
-            return parse_docx_resume(file_path)
+            parsed_resume = parse_docx_resume(file_path)
         else:
             raise ValueError("Unsupported file format. Only PDF and DOCX are supported.")
+
+        # Apply POPIA anonymization if requested
+        if anonymize and popia_compliance:
+            logger.info(f"Applying POPIA anonymization for user {user_id}")
+            anonymized_resume, mapping_dict = popia_compliance.anonymize_user_data(parsed_resume)
+
+            # Store anonymization mapping for potential re-identification
+            if user_id and mapping_dict:
+                parsed_resume['_anonymization_mapping'] = mapping_dict
+                parsed_resume['_anonymized_at'] = str(datetime.now())
+                parsed_resume['_user_id'] = user_id
+
+            parsed_resume = anonymized_resume
+
+            # Audit the data processing
+            if user_id:
+                popia_compliance.audit_data_processing(
+                    user_id,
+                    'resume_parsing',
+                    ['personal_info', 'career_data']
+                )
+
+        logger.info("Resume parsed successfully with POPIA compliance")
+        return parsed_resume
 
     except Exception as e:
         logger.error(f"Error parsing resume file {file_path}: {e}")

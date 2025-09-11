@@ -20,3 +20,15 @@ lxml==4.9.3
 en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.0/en_core_web_sm-3.7.0.tar.gz
 langchain_huggingface==0.1.0
 pdfplumber==0.11.0
+
+# Game Integration Dependencies
+mesa==2.3.0
+pymongo==4.6.0
+selenium==4.15.2
+webdriver-manager==4.0.1
+
+# Additional utilities for game integrations
+pandas==2.1.4
+numpy==1.26.2
+matplotlib==3.8.2
+seaborn==0.13.0

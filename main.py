@@ -55,6 +55,21 @@ import course_suggestions
 import discord_bot
 import colab_integration
 
+# Import game integrations and token system
+try:
+    import virtonomics_integration
+    import simcompanies_integration
+    import cwetlands_integration
+    import theblueconnection_integration
+    import token_system
+except ImportError as e:
+    logging.warning(f"Game integrations not available: {e}")
+    virtonomics_integration = None
+    simcompanies_integration = None
+    cwetlands_integration = None
+    theblueconnection_integration = None
+    token_system = None
+
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -84,6 +99,8 @@ class AgentState(TypedDict):
     discord_notifications: Annotated[List[str], operator.add]
     course_suggestions: Annotated[Dict[str, List[Dict]], lambda x, y: y]
     skill_gaps: Annotated[List[str], operator.add]
+    game_recommendations: Annotated[Dict[str, List[Dict]], lambda x, y: y]
+    token_activities: Annotated[List[Dict], operator.add]
 
 # Node for Gmail scanning with OAuth integration (Issue #2)
 def scan_gmail(state: AgentState) -> AgentState:
@@ -159,14 +176,36 @@ def audit_resumes(state: AgentState) -> AgentState:
         state['audited_resumes'] = []
     return state
 
-# Node for parsing uploaded resume (Issue #4)
+# Node for parsing uploaded resume (Issue #4) with POPIA compliance
 def parse_resume(state: AgentState) -> AgentState:
     try:
         # This would typically parse an uploaded resume file
         # For now, load the master resume as placeholder
         with open('master_resume.json', 'r') as f:
-            state['parsed_resume'] = json.load(f)
-        logger.info("Parsed master resume")
+            raw_resume = json.load(f)
+
+        # Apply POPIA anonymization
+        if popia_compliance:
+            logger.info(f"Applying POPIA anonymization for user {state['user_id']}")
+            anonymized_resume, mapping_dict = popia_compliance.anonymize_user_data(raw_resume)
+
+            # Audit the data processing
+            popia_compliance.audit_data_processing(
+                state['user_id'],
+                'resume_parsing',
+                ['personal_info', 'career_data', 'skills']
+            )
+
+            # Store anonymization mapping for compliance
+            anonymized_resume['_popia_compliant'] = True
+            anonymized_resume['_anonymized_at'] = str(datetime.now())
+            anonymized_resume['_user_id'] = state['user_id']
+
+            state['parsed_resume'] = anonymized_resume
+        else:
+            state['parsed_resume'] = raw_resume
+
+        logger.info("Parsed and anonymized resume with POPIA compliance")
     except Exception as e:
         logger.error(f"Error parsing resume: {e}")
         state['parsed_resume'] = {}
@@ -313,6 +352,129 @@ def discord_notifications(state: AgentState) -> AgentState:
         state['discord_notifications'] = []
     return state
 
+# Node for game recommendations based on resume skills
+def generate_game_recommendations(state: AgentState) -> AgentState:
+    """Generate game recommendations based on user's resume skills."""
+    try:
+        if not state.get('parsed_resume'):
+            logger.info("No parsed resume available for game recommendations")
+            state['game_recommendations'] = {}
+            return state
+
+        # Extract skills from resume
+        resume_skills = state['parsed_resume'].get('skills', [])
+        if not resume_skills:
+            logger.info("No skills found in resume for game recommendations")
+            state['game_recommendations'] = {}
+            return state
+
+        game_recommendations = {}
+
+        # Get recommendations from each game
+        try:
+            if virtonomics_integration:
+                v_rec = virtonomics_integration.get_virtonomics_recommendations(resume_skills)
+                game_recommendations['virtonomics'] = v_rec
+        except Exception as e:
+            logger.warning(f"Error getting Virtonomics recommendations: {e}")
+
+        try:
+            if simcompanies_integration:
+                s_rec = simcompanies_integration.get_simcompanies_recommendations(resume_skills)
+                game_recommendations['simcompanies'] = s_rec
+        except Exception as e:
+            logger.warning(f"Error getting Sim Companies recommendations: {e}")
+
+        try:
+            if cwetlands_integration:
+                c_rec = cwetlands_integration.get_cwetlands_recommendations(resume_skills)
+                game_recommendations['cwetlands'] = c_rec
+        except Exception as e:
+            logger.warning(f"Error getting CWetlands recommendations: {e}")
+
+        try:
+            if theblueconnection_integration:
+                t_rec = theblueconnection_integration.get_theblueconnection_recommendations(resume_skills)
+                game_recommendations['theblueconnection'] = t_rec
+        except Exception as e:
+            logger.warning(f"Error getting The Blue Connection recommendations: {e}")
+
+        state['game_recommendations'] = game_recommendations
+        logger.info(f"Generated game recommendations for {len(game_recommendations)} games")
+
+    except Exception as e:
+        logger.error(f"Error generating game recommendations: {e}")
+        state['game_recommendations'] = {}
+    return state
+
+# Node for awarding tokens for completed activities
+def award_activity_tokens(state: AgentState) -> AgentState:
+    """Award tokens for completed activities in the workflow."""
+    try:
+        if not token_system:
+            logger.info("Token system not available, skipping token awards")
+            state['token_activities'] = []
+            return state
+
+        user_id = state.get('user_id', 'unknown')
+        token_activities = []
+
+        # Award tokens for job applications (if resumes were generated)
+        if state.get('generated_resumes'):
+            num_resumes = len([r for r in state['generated_resumes'] if 'skipped' not in r])
+            if num_resumes > 0:
+                result = token_system.earn_tokens(user_id, 'job_application',
+                    {'num_applications': num_resumes, 'workflow_generated': True})
+                token_activities.append({
+                    'activity': 'job_application',
+                    'tokens_earned': result.get('tokens_earned', 0),
+                    'details': f"Applied to {num_resumes} high-fit jobs"
+                })
+
+        # Award tokens for course completion (if courses were suggested)
+        if state.get('course_suggestions') and any(state['course_suggestions'].values()):
+            num_courses = sum(len(courses) for courses in state['course_suggestions'].values())
+            if num_courses > 0:
+                result = token_system.earn_tokens(user_id, 'course_completion',
+                    {'num_courses': num_courses, 'workflow_generated': True})
+                token_activities.append({
+                    'activity': 'course_completion',
+                    'tokens_earned': result.get('tokens_earned', 0),
+                    'details': f"Completed {num_courses} skill development courses"
+                })
+
+        # Award tokens for game activities (if recommendations were generated)
+        if state.get('game_recommendations'):
+            num_games = len(state['game_recommendations'])
+            if num_games > 0:
+                result = token_system.earn_tokens(user_id, 'game_activity_completion',
+                    {'num_games': num_games, 'workflow_generated': True})
+                token_activities.append({
+                    'activity': 'game_activity_completion',
+                    'tokens_earned': result.get('tokens_earned', 0),
+                    'details': f"Explored {num_games} serious games for skill development"
+                })
+
+        # Award tokens for profile optimization (if resume was audited)
+        if state.get('audited_resumes'):
+            num_audits = len(state['audited_resumes'])
+            if num_audits > 0:
+                result = token_system.earn_tokens(user_id, 'profile_optimization',
+                    {'num_audits': num_audits, 'workflow_generated': True})
+                token_activities.append({
+                    'activity': 'profile_optimization',
+                    'tokens_earned': result.get('tokens_earned', 0),
+                    'details': f"Optimized {num_audits} resumes with AI auditing"
+                })
+
+        state['token_activities'] = token_activities
+        logger.info(f"Awarded tokens for {len(token_activities)} activities to user {user_id}")
+
+    except Exception as e:
+        logger.error(f"Error awarding activity tokens: {e}")
+        state['token_activities'] = []
+    return state
+
 # Build the LangGraph workflow
 workflow = StateGraph(AgentState)
 
@@ -326,6 +488,8 @@ workflow.add_node("generate_resumes", generate_resumes)
 workflow.add_node("audit_resumes", audit_resumes)
 workflow.add_node("select_documents", select_documents)
 workflow.add_node("suggest_courses", suggest_courses)
+workflow.add_node("generate_game_recommendations", generate_game_recommendations)
+workflow.add_node("award_activity_tokens", award_activity_tokens)
 workflow.add_node("send_emails", send_emails)
 workflow.add_node("discord_notifications", discord_notifications)
 
@@ -340,7 +504,9 @@ workflow.add_edge("analyze_job_fit", "generate_resumes")
 workflow.add_edge("generate_resumes", "audit_resumes")
 workflow.add_edge("audit_resumes", "select_documents")
 workflow.add_edge("select_documents", "suggest_courses")
-workflow.add_edge("suggest_courses", "send_emails")
+workflow.add_edge("suggest_courses", "generate_game_recommendations")
+workflow.add_edge("generate_game_recommendations", "award_activity_tokens")
+workflow.add_edge("award_activity_tokens", "send_emails")
 workflow.add_edge("send_emails", "discord_notifications")
 workflow.add_edge("discord_notifications", END)
 
@@ -362,7 +528,9 @@ if __name__ == "__main__":
         sent_emails=[],
         discord_notifications=[],
         course_suggestions={},
-        skill_gaps=[]
+        skill_gaps=[],
+        game_recommendations={},
+        token_activities=[]
     )
     result = app.invoke(initial_state)
     print("Workflow completed:", result)
