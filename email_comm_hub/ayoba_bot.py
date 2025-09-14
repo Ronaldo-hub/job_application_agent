@@ -3,8 +3,8 @@ import logging
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
-import gmail_tool
-import documents
+from . import gmail_tool
+from agent_core import documents
 
 # Load environment variables
 load_dotenv()

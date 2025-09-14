@@ -3,8 +3,8 @@ import json
 import os
 import tempfile
 from unittest.mock import patch, MagicMock
-import resume_parser
-import documents
+from resume_doc_processing import resume_parser
+from agent_core import documents
 
 class TestResumeParser(unittest.TestCase):
 

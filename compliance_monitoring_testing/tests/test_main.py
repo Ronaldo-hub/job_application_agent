@@ -4,9 +4,9 @@ import os
 import sys
 
 # Add the project root to the Python path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
-from main import app, AgentState
+from agent_core.main import app, AgentState
 
 class TestMain(unittest.TestCase):
 

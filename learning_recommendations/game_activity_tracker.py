@@ -29,11 +29,11 @@ logger = logging.getLogger(__name__)
 
 # Import dependencies
 try:
-    import virtonomics_integration
-    import simcompanies_integration
-    import cwetlands_integration
-    import theblueconnection_integration
-    import token_system
+    from . import virtonomics_integration
+    from . import simcompanies_integration
+    from . import cwetlands_integration
+    from . import theblueconnection_integration
+    from gamification_engine import token_system
     import cape_town_data
 except ImportError as e:
     logging.warning(f"Dependency not available: {e}")

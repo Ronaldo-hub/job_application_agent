@@ -6,8 +6,8 @@ Demonstrates Gmail scanning, job parsing, and resume fit analysis
 
 import sys
 import json
-from gmail_tool import get_credentials, scan_emails
-from parser_tool import parse_job_emails
+from email_comm_hub.gmail_tool import get_credentials, scan_emails
+from resume_doc_processing.parser_tool import parse_job_emails
 import logging
 
 # Set up logging

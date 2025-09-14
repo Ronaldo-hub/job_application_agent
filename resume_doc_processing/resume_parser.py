@@ -9,7 +9,7 @@ from docx import Document
 
 # Import POPIA compliance
 try:
-    import popia_compliance
+    from compliance_monitoring_testing import popia_compliance
 except ImportError:
     logging.warning("POPIA compliance module not available")
     popia_compliance = None

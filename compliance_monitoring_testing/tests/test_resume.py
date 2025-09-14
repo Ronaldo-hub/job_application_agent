@@ -6,8 +6,8 @@ from unittest.mock import patch, MagicMock
 import sys
 sys.path.append('..')
 
-import resume_tool
-import audit_tool
+from resume_doc_processing import resume_tool
+from resume_doc_processing import audit_tool
 
 class TestResumeTool(unittest.TestCase):
 

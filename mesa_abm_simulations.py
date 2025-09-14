@@ -96,7 +96,11 @@ class SocialModel(Model):
                 "employed": lambda m: len([a for a in m.schedule.agents if a.employment_status == 'employed']),
                 "unemployed": lambda m: len([a for a in m.schedule.agents if a.employment_status == 'unemployed']),
                 "vulnerability_avg": lambda m: np.mean([a.vulnerability_score for a in m.schedule.agents]),
-                "policy_effectiveness": lambda m: m.calculate_policy_effectiveness()
+                "policy_effectiveness": lambda m: m.calculate_policy_effectiveness(),
+                "collaboration_networks": lambda m: sum(len(a.collaboration_network) for a in m.schedule.agents) / 2,  # Divide by 2 to avoid double counting
+                "active_projects": lambda m: sum(len(a.group_projects) for a in m.schedule.agents) / 2,  # Divide by 2
+                "avg_collaboration_strength": lambda m: np.mean([a.collaboration_strength for a in m.schedule.agents]),
+                "collaborative_success_rate": lambda m: np.mean([a.collaborative_success_rate for a in m.schedule.agents])
             }
         )
 
@@ -135,6 +139,13 @@ class UnemploymentAgent(SocialAgent):
         self.training_level = 0
         self.unemployed_months = random.randint(0, 24)
 
+        # Collaboration features
+        self.collaboration_network = []  # List of collaborating agent IDs
+        self.collaboration_strength = random.uniform(0, 1)
+        self.group_projects = []  # List of active collaborative projects
+        self.shared_resources = 0  # Resources shared within group
+        self.collaborative_success_rate = 0  # Track success of group activities
+
     def step(self):
         """Agent behavior in unemployment simulation."""
         if self.employment_status == 'unemployed':
@@ -148,27 +159,167 @@ class UnemploymentAgent(SocialAgent):
                 self.training_level += 0.1
                 self.job_search_effort += 0.05
 
+            # Collaboration activities
+            if random.random() < 0.15:  # 15% chance to seek collaboration
+                self.form_collaboration()
+
+            # Work on collaborative projects
+            self.work_on_collaborative_projects()
+
             self.unemployed_months += 1
 
     def find_job(self):
         """Attempt to find employment."""
         skill_factor = len(self.skills) * 0.1
         training_factor = self.training_level * 0.2
-        success_prob = min(0.3 + skill_factor + training_factor, 0.8)
+        collaboration_factor = len(self.collaboration_network) * 0.05  # Network helps job search
+        success_prob = min(0.3 + skill_factor + training_factor + collaboration_factor, 0.8)
 
         if random.random() < success_prob:
             self.employment_status = 'employed'
             self.unemployed_months = 0
             self.income = random.randint(8000, 25000)
+            # Share success with network
+            self.share_success_with_network()
+
+    def share_success_with_network(self):
+        """Share employment success with collaboration network."""
+        for collaborator_id in self.collaboration_network:
+            collaborator = self.model.schedule.agents[collaborator_id]
+            if collaborator.employment_status == 'unemployed':
+                # Boost collaborator's job search effort
+                collaborator.job_search_effort = min(collaborator.job_search_effort + 0.1, 1.0)
+                collaborator.collaborative_success_rate += 0.05
+
+    def form_collaboration(self):
+        """Attempt to form collaborations with other unemployed agents."""
+        if len(self.collaboration_network) >= 3:  # Limit network size
+            return
+
+        # Find nearby unemployed agents with complementary skills
+        nearby_unemployed = []
+        for agent in self.model.schedule.agents:
+            if (agent != self and
+                agent.employment_status == 'unemployed' and
+                self.get_distance(agent) <= 2 and  # Within social distance
+                len(agent.collaboration_network) < 3):
+
+                # Check for complementary skills
+                if self.has_complementary_skills(agent):
+                    nearby_unemployed.append(agent)
+
+        if nearby_unemployed:
+            # Form collaboration with most complementary agent
+            partner = max(nearby_unemployed, key=lambda a: self.skill_complementarity_score(a))
+
+            if partner.unique_id not in self.collaboration_network:
+                self.collaboration_network.append(partner.unique_id)
+                partner.collaboration_network.append(self.unique_id)
+
+                # Start a collaborative project
+                self.start_collaborative_project(partner)
+
+    def has_complementary_skills(self, other_agent):
+        """Check if agent has complementary skills."""
+        my_skills = set(self.skills)
+        other_skills = set(other_agent.skills)
+        overlap = len(my_skills.intersection(other_skills))
+        total_unique = len(my_skills.union(other_skills))
+        return overlap / total_unique < 0.8  # Less than 80% overlap = complementary
+
+    def skill_complementarity_score(self, other_agent):
+        """Calculate skill complementarity score."""
+        my_skills = set(self.skills)
+        other_skills = set(other_agent.skills)
+        union = my_skills.union(other_skills)
+        intersection = my_skills.intersection(other_skills)
+
+        if not union:
+            return 0
+
+        # Higher score for more complementary skills
+        return (len(union) - len(intersection)) / len(union)
+
+    def start_collaborative_project(self, partner):
+        """Start a collaborative project with partner."""
+        project = {
+            'type': random.choice(['skill_sharing', 'community_service', 'small_business']),
+            'partners': [self.unique_id, partner.unique_id],
+            'progress': 0,
+            'success_probability': (self.collaboration_strength + partner.collaboration_strength) / 2,
+            'potential_impact': random.choice(['job_creation', 'skill_development', 'community_benefit'])
+        }
+
+        self.group_projects.append(project)
+        partner.group_projects.append(project)
+
+    def work_on_collaborative_projects(self):
+        """Work on active collaborative projects."""
+        for project in self.group_projects:
+            if random.random() < project['success_probability']:
+                project['progress'] += 0.1
+
+                if project['progress'] >= 1.0:
+                    self.complete_collaborative_project(project)
+
+    def complete_collaborative_project(self, project):
+        """Handle completion of collaborative project."""
+        success = random.random() < project['success_probability']
+
+        if success:
+            if project['potential_impact'] == 'job_creation':
+                # Create job opportunities for participants
+                for agent_id in project['partners']:
+                    agent = self.model.schedule.agents[agent_id]
+                    if agent.employment_status == 'unemployed' and random.random() < 0.6:
+                        agent.employment_status = 'employed'
+                        agent.income = random.randint(10000, 30000)
+                        agent.collaborative_success_rate += 0.2
+
+            elif project['potential_impact'] == 'skill_development':
+                # Boost skills for all participants
+                for agent_id in project['partners']:
+                    agent = self.model.schedule.agents[agent_id]
+                    if random.random() < 0.8:
+                        new_skill = random.choice(['basic', 'intermediate', 'advanced'])
+                        if new_skill not in agent.skills:
+                            agent.skills.append(new_skill)
+                        agent.training_level += 0.1
+
+            # Boost collaboration strength
+            for agent_id in project['partners']:
+                agent = self.model.schedule.agents[agent_id]
+                agent.collaboration_strength = min(agent.collaboration_strength + 0.1, 1.0)
+
+        # Remove completed project
+        self.group_projects.remove(project)
+
+    def get_distance(self, other_agent):
+        """Calculate social distance to another agent."""
+        # Simple distance based on grid position
+        my_pos = None
+        other_pos = None
+
+        for cell, agents in self.model.grid.grid.items():
+            if self in agents:
+                my_pos = cell
+            if other_agent in agents:
+                other_pos = cell
+
+        if my_pos and other_pos:
+            return abs(my_pos[0] - other_pos[0]) + abs(my_pos[1] - other_pos[1])
+        return float('inf')
 
 class UnemploymentModel(SocialModel):
     """Model for unemployment policy simulation."""
 
     def __init__(self, width: int = 20, height: int = 20, num_agents: int = 100,
                  training_program_intensity: float = 0.5,
-                 job_creation_rate: float = 0.1):
+                 job_creation_rate: float = 0.1,
+                 collaboration_enabled: bool = True):
         self.training_program_intensity = training_program_intensity
         self.job_creation_rate = job_creation_rate
+        self.collaboration_enabled = collaboration_enabled
         super().__init__(width, height, num_agents)
 
     def create_agent(self, unique_id: int) -> UnemploymentAgent:
@@ -499,7 +650,11 @@ class PolicySimulationRunner:
             'final_metrics': {
                 'employed': len([a for a in model.schedule.agents if a.employment_status == 'employed']),
                 'unemployed': len([a for a in model.schedule.agents if a.employment_status == 'unemployed']),
-                'policy_effectiveness': model.calculate_policy_effectiveness()
+                'policy_effectiveness': model.calculate_policy_effectiveness(),
+                'collaboration_networks': sum(len(a.collaboration_network) for a in model.schedule.agents) / 2,
+                'active_projects': sum(len(a.group_projects) for a in model.schedule.agents) / 2,
+                'avg_collaboration_strength': np.mean([a.collaboration_strength for a in model.schedule.agents]),
+                'collaborative_success_rate': np.mean([a.collaborative_success_rate for a in model.schedule.agents])
             },
             'time_series_data': self.extract_time_series(model)
         }
@@ -513,7 +668,11 @@ class PolicySimulationRunner:
             'employed': data['employed'].tolist(),
             'unemployed': data['unemployed'].tolist(),
             'vulnerability_avg': data['vulnerability_avg'].tolist(),
-            'policy_effectiveness': data['policy_effectiveness'].tolist()
+            'policy_effectiveness': data['policy_effectiveness'].tolist(),
+            'collaboration_networks': data['collaboration_networks'].tolist(),
+            'active_projects': data['active_projects'].tolist(),
+            'avg_collaboration_strength': data['avg_collaboration_strength'].tolist(),
+            'collaborative_success_rate': data['collaborative_success_rate'].tolist()
         }
 
     def compare_policies(self, model_type: str, policy_scenarios: List[Dict]) -> Dict:
@@ -562,8 +721,7 @@ def run_cape_town_unemployment_simulation() -> Dict:
         'num_agents': 500,  # Approximate job seekers
         'training_program_intensity': 0.6,  # Higher training focus for youth unemployment
         'job_creation_rate': 0.15,  # Economic growth factor
-        'baseline_unemployment': baseline_unemployment,
-        'youth_focus': True  # Special focus on youth unemployment
+        'collaboration_enabled': True
     }
 
     result = runner.run_simulation('unemployment', steps=100, parameters=parameters)
@@ -706,6 +864,11 @@ if __name__ == "__main__":
     print("Running Unemployment Policy Simulation...")
     unemployment_result = run_policy_simulation('unemployment')
     print(json.dumps(unemployment_result, indent=2))
+
+    # Test unemployment simulation with collaboration enabled
+    print("\nRunning Unemployment Simulation with Collaboration...")
+    collab_result = run_policy_simulation('unemployment', {'collaboration_enabled': True})
+    print(json.dumps(collab_result, indent=2))
 
     # Test Cape Town specific simulation
     print("\nRunning Cape Town Unemployment Simulation...")

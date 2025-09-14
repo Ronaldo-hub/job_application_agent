@@ -4,7 +4,7 @@ Complete Gmail OAuth Setup with Authorization Code
 """
 
 import sys
-from gmail_tool import exchange_code_for_token, get_credentials, scan_emails
+from .gmail_tool import exchange_code_for_token, get_credentials, scan_emails
 import logging
 
 # Set up logging

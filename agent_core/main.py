@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 def log_conversation_entry(entry_type, content, details=None):
     """Automatically log conversation entries to conversation_log.md"""
     try:
-        log_file = "conversation_log.md"
+        log_file = "../compliance_monitoring_testing/conversation_log.md"
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         # Create log entry
@@ -44,24 +44,27 @@ from langchain_core.messages import BaseMessage
 from langgraph.graph import StateGraph, START, END, add_messages
 from typing import TypedDict, List, Dict, Annotated
 import asyncio
-import gmail_tool
-import parser_tool
-import resume_tool
-import audit_tool
-import resume_parser
-import documents
-import job_search
-import course_suggestions
-import discord_bot
-import colab_integration
+from email_comm_hub import gmail_tool
+from resume_doc_processing import parser_tool
+from resume_doc_processing import resume_tool
+from resume_doc_processing import audit_tool
+from resume_doc_processing import resume_parser
+from agent_core import documents
+from job_discovery_matching import job_search
+from learning_recommendations import course_suggestions
+from email_comm_hub import discord_bot
+from external_services_deployment import colab_integration
+
+# Import compliance module
+from compliance_monitoring_testing import popia_compliance
 
 # Import game integrations and token system
 try:
-    import virtonomics_integration
-    import simcompanies_integration
-    import cwetlands_integration
-    import theblueconnection_integration
-    import token_system
+    from learning_recommendations import virtonomics_integration
+    from learning_recommendations import simcompanies_integration
+    from learning_recommendations import cwetlands_integration
+    from learning_recommendations import theblueconnection_integration
+    from gamification_engine import token_system
 except ImportError as e:
     logging.warning(f"Game integrations not available: {e}")
     virtonomics_integration = None
@@ -181,7 +184,7 @@ def parse_resume(state: AgentState) -> AgentState:
     try:
         # This would typically parse an uploaded resume file
         # For now, load the master resume as placeholder
-        with open('master_resume.json', 'r') as f:
+        with open('../resume_doc_processing/master_resume.json', 'r') as f:
             raw_resume = json.load(f)
 
         # Apply POPIA anonymization

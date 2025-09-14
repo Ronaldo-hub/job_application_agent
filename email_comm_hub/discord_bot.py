@@ -6,20 +6,22 @@ from discord.ext import commands
 import logging
 from dotenv import load_dotenv
 import asyncio
-import job_search
-import resume_tool
-import course_suggestions
+from job_discovery_matching import job_search
+from resume_doc_processing import resume_tool
+from learning_recommendations import course_suggestions
 from typing import Optional
 
 # Import game integrations
 try:
-    import virtonomics_integration
-    import simcompanies_integration
-    import cwetlands_integration
-    import theblueconnection_integration
+    from learning_recommendations import virtonomics_integration
+    from learning_recommendations import simcompanies_integration
+    from learning_recommendations import cwetlands_integration
+    from learning_recommendations import theblueconnection_integration
     import mesa_abm_simulations
+    from agent_core import conversational_ai
 except ImportError as e:
     logging.warning(f"Game integrations not available: {e}")
+    conversational_ai = None
 
 # Import additional utilities
 try:
@@ -30,7 +32,7 @@ except ImportError:
 
 # Import token system
 try:
-    import token_system
+    from gamification_engine import token_system
 except ImportError:
     logging.warning("Token system not available")
     token_system = None
@@ -44,13 +46,13 @@ except ImportError:
 
 # Import conversation logging function
 try:
-    from main import log_conversation_entry
+    from agent_core.main import log_conversation_entry
 except ImportError:
     # Define fallback logging function if main.py not available
     def log_conversation_entry(entry_type, content, details=None):
         """Fallback conversation logging function."""
         try:
-            log_file = "conversation_log.md"
+            log_file = "../compliance_monitoring_testing/conversation_log.md"
             from datetime import datetime
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -91,6 +93,53 @@ async def on_ready():
         logger.info(f"Synced {len(synced)} command(s)")
     except Exception as e:
         logger.error(f"Failed to sync commands: {e}")
+
+@bot.event
+async def on_message(message):
+    """Handle incoming messages for conversational AI."""
+    # Don't respond to our own messages
+    if message.author == bot.user:
+        return
+
+    # Only respond in DMs or when mentioned in servers
+    if isinstance(message.channel, discord.DMChannel) or bot.user in message.mentions:
+        # Remove the mention if present
+        content = message.content
+        if bot.user in message.mentions:
+            content = content.replace(f'<@{bot.user.id}>', '').strip()
+
+        if content and conversational_ai:
+            try:
+                user_id = str(message.author.id)
+
+                # Get user context
+                user_context = {
+                    'location': 'Cape Town',
+                    'skills': [],
+                    'situation': 'Active job seeker',
+                    'recent_activity': 'Direct messaging bot'
+                }
+
+                # Generate response
+                response = conversational_ai.chat_with_user(user_id, content, user_context)
+
+                # Send response
+                embed = discord.Embed(
+                    title="💬 CareerGuide Assistant",
+                    description=response,
+                    color=0x9b59b6
+                )
+
+                embed.set_footer(text="💡 You can also use slash commands like /search_jobs or /chat for more specific help!")
+
+                await message.channel.send(embed=embed)
+
+                # Log the conversation
+                log_conversation_entry("Direct Message Chat", f"User {message.author.display_name} messaged bot directly", f"Message: {content}")
+
+            except Exception as e:
+                logger.error(f"Error handling direct message: {e}")
+                await message.channel.send("I'm having trouble responding right now. Try using /chat or /help for assistance!")
 
 @bot.tree.command(name="search_jobs", description="Search for jobs with location and time filters")
 @app_commands.describe(
@@ -1250,6 +1299,60 @@ async def cape_town_report(interaction: discord.Interaction):
         logger.error(f"Error in cape_town_report: {e}")
         await interaction.followup.send(f"Error generating Cape Town report: {str(e)}")
 
+# =============================================================================
+# CONVERSATIONAL AI COMMANDS
+# =============================================================================
+
+@bot.tree.command(name="chat", description="Have a natural conversation with your job search assistant")
+@app_commands.describe(
+    message="What would you like to talk about? (e.g., 'I'm looking for admin jobs' or 'How can I improve my skills?')"
+)
+async def chat_command(interaction: discord.Interaction, message: str):
+    """Have a natural conversation with the AI assistant."""
+    await interaction.response.defer()
+
+    try:
+        user_id = str(interaction.user.id)
+
+        # Log the conversation
+        log_conversation_entry("Chat Interaction", f"User {interaction.user.display_name} chatted with AI assistant", f"Message: {message}")
+
+        if conversational_ai:
+            # Get user context for better responses
+            user_context = {
+                'location': 'Cape Town',
+                'skills': [],  # Would be populated from user profile in real implementation
+                'situation': 'Active job seeker',
+                'recent_activity': 'Chatting with assistant'
+            }
+
+            # Generate conversational response
+            response = conversational_ai.chat_with_user(user_id, message, user_context)
+
+            # Send response
+            embed = discord.Embed(
+                title="💬 CareerGuide Assistant",
+                description=response,
+                color=0x9b59b6
+            )
+
+            embed.set_footer(text="💡 Tip: You can also use specific commands like /search_jobs or /game_recommend for targeted help!")
+
+            await interaction.followup.send(embed=embed)
+
+        else:
+            # Fallback response
+            embed = discord.Embed(
+                title="Chat Assistant Unavailable",
+                description="The conversational AI is currently unavailable. Try using specific commands like /search_jobs or /help for assistance.",
+                color=0xffa500
+            )
+            await interaction.followup.send(embed=embed)
+
+    except Exception as e:
+        logger.error(f"Error in chat command: {e}")
+        await interaction.followup.send(f"Sorry, I'm having trouble responding right now. Please try again or use /help for available commands.")
+
 @bot.tree.command(name="help", description="Show available commands")
 async def help_command(interaction: discord.Interaction):
     """Show help information."""
@@ -1257,6 +1360,12 @@ async def help_command(interaction: discord.Interaction):
         title="Job Application Assistant",
         description="Available commands:",
         color=0x3498db
+    )
+
+    embed.add_field(
+        name="/chat",
+        value="Have a natural conversation with your job search assistant",
+        inline=False
     )
 
     embed.add_field(

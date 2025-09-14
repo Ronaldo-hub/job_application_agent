@@ -5,9 +5,9 @@ Test the full Job Application Agent workflow
 
 import sys
 import json
-from gmail_tool import get_credentials, scan_emails
-from parser_tool import parse_job_emails
-from resume_tool import load_master_resume, calculate_fit_score, generate_resume_content
+from email_comm_hub.gmail_tool import get_credentials, scan_emails
+from resume_doc_processing.parser_tool import parse_job_emails
+from resume_doc_processing.resume_tool import load_master_resume, calculate_fit_score, generate_resume_content
 import logging
 
 # Set up logging

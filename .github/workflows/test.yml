@@ -45,7 +45,7 @@ jobs:
         import os
         if os.getenv('HUGGINGFACE_API_KEY'):
             print('Testing resume generation with API key')
-            import resume_tool
+            from resume_doc_processing import resume_tool
             job = {'job_title': 'Test Developer', 'skills': ['Python'], 'employer_email': 'test@company.com', 'email_id': 'test'}
             result = resume_tool.generate_resume(job)
             print('Resume generation successful:', 'content' in result)

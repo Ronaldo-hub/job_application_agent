@@ -6,7 +6,7 @@ Test token retrieval and create token.json if needed
 import os
 import json
 from dotenv import load_dotenv
-from gmail_tool import get_token
+from email_comm_hub.gmail_tool import get_token
 
 def main():
     # Load environment variables

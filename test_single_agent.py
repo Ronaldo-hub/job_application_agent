@@ -20,16 +20,16 @@ logger = logging.getLogger(__name__)
 
 # Import system components
 try:
-    import resume_tool
-    import virtonomics_integration
-    import simcompanies_integration
-    import cwetlands_integration
-    import theblueconnection_integration
+    from resume_doc_processing import resume_tool
+    from learning_recommendations import virtonomics_integration
+    from learning_recommendations import simcompanies_integration
+    from learning_recommendations import cwetlands_integration
+    from learning_recommendations import theblueconnection_integration
     import mesa_abm_simulations
-    import token_system
+    from gamification_engine import token_system
     import cape_town_data
-    import popia_compliance
-    import game_activity_tracker
+    from compliance_monitoring_testing import popia_compliance
+    from learning_recommendations import game_activity_tracker
 except ImportError as e:
     logger.error(f"Failed to import component: {e}")
     exit(1)
