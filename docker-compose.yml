@@ -1,0 +1,237 @@
+version: '3.8'
+
+services:
+  # Database
+  mongodb:
+    image: mongo:7.0
+    container_name: job_agent_mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-password}
+      MONGO_INITDB_DATABASE: job_application_agent
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    networks:
+      - job_agent_network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Core Orchestrator
+  core-orchestrator:
+    build:
+      context: .
+      dockerfile: docker/core-orchestrator/Dockerfile
+    container_name: job_agent_core
+    restart: unless-stopped
+    environment:
+      - MONGO_URI=mongodb://admin:password@mongodb:27017/job_application_agent
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=INFO
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    volumes:
+      - ./agent_core:/app/agent_core
+      - ./compliance_monitoring_testing:/app/compliance_monitoring_testing
+      - ./email_comm_hub:/app/email_comm_hub
+      - ./resume_doc_processing:/app/resume_doc_processing
+      - ./job_discovery_matching:/app/job_discovery_matching
+      - ./learning_recommendations:/app/learning_recommendations
+      - ./gamification_engine:/app/gamification_engine
+      - ./external_services_deployment:/app/external_services_deployment
+    networks:
+      - job_agent_network
+    ports:
+      - "8000:8000"
+
+  # Resume Upload Service
+  resume-upload:
+    build:
+      context: .
+      dockerfile: docker/resume-upload/Dockerfile
+    container_name: job_agent_resume_upload
+    restart: unless-stopped
+    environment:
+      - MONGO_URI=mongodb://admin:password@mongodb:27017/job_application_agent
+      - LOG_LEVEL=INFO
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    volumes:
+      - ./resume_doc_processing:/app/resume_doc_processing
+      - ./compliance_monitoring_testing:/app/compliance_monitoring_testing
+      - resume_uploads:/app/uploads
+    networks:
+      - job_agent_network
+    ports:
+      - "8001:8000"
+
+  # Job Search Service
+  job-search:
+    build:
+      context: .
+      dockerfile: docker/job-search/Dockerfile
+    container_name: job_agent_job_search
+    restart: unless-stopped
+    environment:
+      - MONGO_URI=mongodb://admin:password@mongodb:27017/job_application_agent
+      - ADZUNA_APP_ID=${ADZUNA_APP_ID}
+      - ADZUNA_APP_KEY=${ADZUNA_APP_KEY}
+      - SERPAPI_API_KEY=${SERPAPI_API_KEY}
+      - CAREERJET_API_KEY=${CAREERJET_API_KEY}
+      - UPWORK_CLIENT_ID=${UPWORK_CLIENT_ID}
+      - UPWORK_CLIENT_SECRET=${UPWORK_CLIENT_SECRET}
+      - RAPIDAPI_KEY=${RAPIDAPI_KEY}
+      - LOG_LEVEL=INFO
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    volumes:
+      - ./job_discovery_matching:/app/job_discovery_matching
+    networks:
+      - job_agent_network
+    ports:
+      - "8002:8000"
+
+  # ATS Optimization Service
+  ats-optimize:
+    build:
+      context: .
+      dockerfile: docker/ats-optimize/Dockerfile
+    container_name: job_agent_ats_optimize
+    restart: unless-stopped
+    environment:
+      - MONGO_URI=mongodb://admin:password@mongodb:27017/job_application_agent
+      - HUGGINGFACE_API_KEY=${HUGGINGFACE_API_KEY}
+      - LOG_LEVEL=INFO
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    volumes:
+      - ./resume_doc_processing:/app/resume_doc_processing
+      - ./agent_core:/app/agent_core
+    networks:
+      - job_agent_network
+    ports:
+      - "8003:8000"
+
+  # Team Simulation Service
+  team-sim:
+    build:
+      context: .
+      dockerfile: docker/team-sim/Dockerfile
+    container_name: job_agent_team_sim
+    restart: unless-stopped
+    environment:
+      - MONGO_URI=mongodb://admin:password@mongodb:27017/job_application_agent
+      - LOG_LEVEL=INFO
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    volumes:
+      - ./mesa_abm_simulations.py:/app/mesa_abm_simulations.py
+      - ./cape_town_data.py:/app/cape_town_data.py
+    networks:
+      - job_agent_network
+    ports:
+      - "8004:8000"
+
+  # Discord Bot Service
+  discord-bot:
+    build:
+      context: .
+      dockerfile: docker/discord-bot/Dockerfile
+    container_name: job_agent_discord_bot
+    restart: unless-stopped
+    environment:
+      - MONGO_URI=mongodb://admin:password@mongodb:27017/job_application_agent
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+      - XAI_API_KEY=${XAI_API_KEY}
+      - HUGGINGFACE_API_KEY=${HUGGINGFACE_API_KEY}
+      - LOG_LEVEL=INFO
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    volumes:
+      - ./email_comm_hub:/app/email_comm_hub
+      - ./agent_core:/app/agent_core
+      - ./job_discovery_matching:/app/job_discovery_matching
+      - ./resume_doc_processing:/app/resume_doc_processing
+      - ./learning_recommendations:/app/learning_recommendations
+      - ./gamification_engine:/app/gamification_engine
+      - ./compliance_monitoring_testing:/app/compliance_monitoring_testing
+    networks:
+      - job_agent_network
+
+  # Game Integration Service
+  game-integration:
+    build:
+      context: .
+      dockerfile: docker/game-integration/Dockerfile
+    container_name: job_agent_game_integration
+    restart: unless-stopped
+    environment:
+      - MONGO_URI=mongodb://admin:password@mongodb:27017/job_application_agent
+      - LOG_LEVEL=INFO
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    volumes:
+      - ./gamification_engine:/app/gamification_engine
+      - ./learning_recommendations:/app/learning_recommendations
+    networks:
+      - job_agent_network
+    ports:
+      - "8005:8000"
+
+  # Streamlit UI Service
+  streamlit-ui:
+    build:
+      context: .
+      dockerfile: docker/streamlit-ui/Dockerfile
+    container_name: job_agent_streamlit_ui
+    restart: unless-stopped
+    environment:
+      - MONGO_URI=mongodb://admin:password@mongodb:27017/job_application_agent
+      - LOG_LEVEL=INFO
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    volumes:
+      - ./documentation_api.py:/app/documentation_api.py
+      - ./agent_core:/app/agent_core
+    networks:
+      - job_agent_network
+    ports:
+      - "8501:8501"
+
+  # Redis for caching (optional)
+  redis:
+    image: redis:7.2-alpine
+    container_name: job_agent_redis
+    restart: unless-stopped
+    networks:
+      - job_agent_network
+    ports:
+      - "6379:6379"
+
+volumes:
+  mongodb_data:
+    driver: local
+  resume_uploads:
+    driver: local
+
+networks:
+  job_agent_network:
+    driver: bridge

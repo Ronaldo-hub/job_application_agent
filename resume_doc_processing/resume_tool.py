@@ -33,7 +33,10 @@ except OSError:
 def load_master_resume() -> Dict:
     """Load the master resume from JSON file."""
     try:
-        with open('master_resume.json', 'r') as f:
+        # Get the directory of this file and look for master_resume.json
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        resume_path = os.path.join(current_dir, 'master_resume.json')
+        with open(resume_path, 'r') as f:
             return json.load(f)
     except FileNotFoundError:
         logger.error("master_resume.json not found")

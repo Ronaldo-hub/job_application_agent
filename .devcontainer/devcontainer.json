@@ -1,0 +1,17 @@
+{
+  "name": "Job Application Agent",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/mongo:1": {},
+    "ghcr.io/devcontainers/features/git:1": {}
+  },
+  "extensions": ["ms-vscode.vscode-typescript-next", "github.copilot"],
+  "forwardPorts": [8001, 8002, 8003, 8004, 8005, 8501, 27017],
+  "postCreateCommand": "bash setup.sh",
+  "customizations": {
+    "vscode": {
+      "settings": {}
+    }
+  }
+}
