@@ -222,8 +222,12 @@ class TestJobSearchToolCalls:
         assert "content" in data
         assert "Deduplicated 3 jobs down to 2" in data["content"][0]["text"]
 
-    def test_analyze_job_market_trends_tool(self):
+    @patch('main.db')
+    def test_analyze_job_market_trends_tool(self, mock_db):
         """Test analyze_job_market_trends tool"""
+        # Configure the existing mock
+        mock_db.job_market_data.insert_one.return_value = None
+
         jobs = [
             {"title": "Python Dev", "company": "Tech Corp", "location": "Cape Town"},
             {"title": "Java Dev", "company": "Web Inc", "location": "Johannesburg"},
@@ -356,13 +360,17 @@ class TestJobSearchCoreFunctionality:
     @patch('main.db')
     def test_update_job_market_data_function(self, mock_db):
         """Test update_job_market_data function"""
+        # Configure the mock
+        mock_db.job_market_data.insert_one.return_value = None
+
         jobs = [
             {"title": "Python Dev", "company": "Tech Corp", "salary": "50000"},
             {"title": "Java Dev", "company": "Web Inc", "salary": "60000"}
         ]
 
-        # Call the function directly
-        update_job_market_data("python", "remote", jobs)
+        # Call the async function properly
+        import asyncio
+        asyncio.run(update_job_market_data("python", "remote", jobs))
 
         # Verify data was inserted
         assert mock_db.job_market_data.insert_one.called
@@ -370,12 +378,17 @@ class TestJobSearchCoreFunctionality:
     @patch('main.db')
     def test_update_job_market_data_with_salaries(self, mock_db):
         """Test update_job_market_data function with salary calculations"""
+        # Configure the mock
+        mock_db.job_market_data.insert_one.return_value = None
+
         jobs = [
             {"title": "Dev", "company": "Corp", "salary": "50000"},
             {"title": "Dev2", "company": "Corp2", "salary": "70000"}
         ]
 
-        update_job_market_data("developer", "remote", jobs)
+        # Call the async function properly
+        import asyncio
+        asyncio.run(update_job_market_data("developer", "remote", jobs))
 
         # Verify the call was made
         assert mock_db.job_market_data.insert_one.called

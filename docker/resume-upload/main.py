@@ -214,6 +214,9 @@ async def call_tool(tool_call: MCPToolCall):
         else:
             raise HTTPException(status_code=404, detail=f"Tool {tool_name} not found")
 
+    except HTTPException:
+        # Re-raise HTTP exceptions to maintain proper status codes
+        raise
     except Exception as e:
         logger.error(f"Error calling tool {tool_call.name}: {e}")
         return MCPToolResponse(
@@ -289,6 +292,9 @@ async def upload_resume(
             "anonymized": anonymize
         }
 
+    except HTTPException:
+        # Re-raise HTTP exceptions to maintain proper status codes
+        raise
     except Exception as e:
         logger.error(f"Error uploading resume: {e}")
         raise HTTPException(status_code=500, detail=str(e))

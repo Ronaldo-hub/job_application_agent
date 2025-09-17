@@ -250,8 +250,9 @@ class TestResumeUploadToolCalls:
         assert "content" in data
         assert "Missing sections" in data["content"][0]["text"]
 
+    @patch('main.db')
     @patch('main.popia_compliance')
-    def test_anonymize_resume_data_tool_success(self, mock_popia):
+    def test_anonymize_resume_data_tool_success(self, mock_popia, mock_db):
         """Test anonymize_resume_data tool success"""
         mock_popia.anonymize_user_data.return_value = ({"skills": ["python"]}, {"name": "John Doe"})
         mock_popia.audit_data_processing = Mock()
@@ -317,7 +318,11 @@ class TestFileUploadEndpoint:
         assert result["user_id"] == "test_user"
         assert result["anonymized"] == True
 
-    def test_upload_resume_invalid_file_type(self):
+    @patch('main.db')
+    @patch('main.parse_resume_file')
+    @patch('builtins.open', new_callable=MagicMock)
+    @patch('os.remove')
+    def test_upload_resume_invalid_file_type(self, mock_remove, mock_open, mock_parse_resume, mock_db):
         """Test upload with invalid file type"""
         file_content = b"Mock executable content"
         files = {"file": ("test.exe", BytesIO(file_content), "application/x-msdownload")}
