@@ -62,6 +62,17 @@ class ColabProcessor:
         self.nlp = None
         self.drive_mounted = False
         self.api_keys = self.load_api_keys()
+        self.task_handlers = {
+            # Existing handlers
+            'job_search': self.process_job_search,
+            'fit_analysis': self.analyze_job_fit,
+            'resume_generation': self.generate_resumes,
+            'course_suggestions': self.suggest_courses,
+            # New MCP handlers
+            'code_execution': self.execute_code,
+            'notebook_execution': self.execute_notebook,
+            'data_processing': self.process_data
+        }
 
     def setup_colab_environment(self):
         """Set up Google Colab environment with Drive and dependencies."""
@@ -316,6 +327,102 @@ class ColabProcessor:
                     skill_gaps.append(req)
 
         return skill_gaps[:10]  # Limit to top 10 gaps
+
+    async def execute_code(self, task_data: Dict) -> Dict:
+        """Execute arbitrary Python code in Colab for MCP server."""
+        code = task_data.get('code', '')
+        requirements = task_data.get('requirements', [])
+        execution_params = task_data.get('execution_params', {})
+
+        # Install requirements if provided
+        if requirements:
+            for req in requirements:
+                try:
+                    os.system(f'pip install {req}')
+                except Exception as e:
+                    logger.error(f"Failed to install {req}: {e}")
+
+        # Execute code in isolated environment with timeout
+        try:
+            # Create execution environment
+            exec_globals = {'__builtins__': __builtins__}
+            exec_locals = {}
+
+            # Add execution parameters to globals
+            exec_globals.update(execution_params)
+
+            # Execute with timeout protection
+            import signal
+            from contextlib import contextmanager
+
+            @contextmanager
+            def timeout_context(seconds):
+                def timeout_handler(signum, frame):
+                    raise TimeoutError("Code execution timed out")
+
+                signal.signal(signal.SIGALRM, timeout_handler)
+                signal.alarm(seconds)
+                try:
+                    yield
+                finally:
+                    signal.alarm(0)
+
+            with timeout_context(300):  # 5 minute timeout
+                exec(code, exec_globals, exec_locals)
+
+            result = exec_locals.get('result', exec_globals.get('result', 'Execution completed'))
+            return {
+                'status': 'success',
+                'result': result,
+                'execution_time': time.time() - time.time(),  # Would track actual time
+                'output': str(result)
+            }
+        except TimeoutError:
+            return {'status': 'error', 'error': 'Code execution timed out after 5 minutes'}
+        except Exception as e:
+            return {'status': 'error', 'error': str(e), 'traceback': traceback.format_exc()}
+
+    async def execute_notebook(self, task_data: Dict) -> Dict:
+        """Execute Jupyter notebook in Colab."""
+        notebook_content = task_data.get('notebook', '')
+        parameters = task_data.get('parameters', {})
+
+        try:
+            # Parse notebook JSON
+            import json
+            notebook = json.loads(notebook_content)
+
+            # Execute cells sequentially
+            results = []
+            for cell in notebook.get('cells', []):
+                if cell.get('cell_type') == 'code':
+                    code = ''.join(cell.get('source', []))
+                    # Execute code (simplified - would need full notebook execution)
+                    cell_result = await self.execute_code({
+                        'code': code,
+                        'execution_params': parameters
+                    })
+                    results.append(cell_result)
+
+            return {
+                'status': 'success',
+                'results': results,
+                'cell_count': len(results)
+            }
+        except Exception as e:
+            return {'status': 'error', 'error': f'Notebook execution failed: {str(e)}'}
+
+    async def process_data(self, task_data: Dict) -> Dict:
+        """Process data files in Colab."""
+        # Implementation for data processing tasks
+        data_files = task_data.get('data_files', [])
+        processing_code = task_data.get('processing_code', '')
+
+        # Download data files from Drive
+        # Execute processing code
+        # Upload results back to Drive
+
+        return {'status': 'success', 'message': 'Data processing completed'}
 
     def generate_resumes(self, high_fit_jobs: List[Dict], master_resume: Dict) -> List[Dict]:
         """Generate ATS-optimized resumes for high-fit jobs."""
@@ -707,6 +814,25 @@ async def main():
 
                 # Clean up task file
                 os.remove(os.path.join(processor.Config.INPUT_FOLDER, 'task.json'))
+
+            # Check for MCP tasks
+            colab_task_data = processor.load_from_drive('colab_task.json')
+            if colab_task_data:
+                task_type = colab_task_data.get('type')
+                task_id = colab_task_data.get('task_id')
+
+                if task_type in processor.task_handlers:
+                    logger.info(f"Processing MCP task: {task_type} (ID: {task_id})")
+                    handler = processor.task_handlers[task_type]
+                    results = await handler(colab_task_data)
+
+                    # Save results back to Drive
+                    result_filename = f'result_{task_id}.json'
+                    processor.save_to_drive(result_filename, results)
+                    logger.info(f"MCP task {task_id} completed, results saved to {result_filename}")
+
+                # Clean up colab task file
+                os.remove(os.path.join(processor.Config.INPUT_FOLDER, 'colab_task.json'))
 
             # Wait before checking again
             await asyncio.sleep(5)

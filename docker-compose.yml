@@ -216,6 +216,29 @@ services:
     ports:
       - "8501:8501"
 
+  # Colab MCP Server
+  colab-mcp-server:
+    build:
+      context: .
+      dockerfile: docker/colab-mcp-server/Dockerfile
+    container_name: job_agent_colab_mcp
+    restart: unless-stopped
+    environment:
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_REFRESH_TOKEN=${GOOGLE_REFRESH_TOKEN}
+      - DRIVE_FOLDER_ID=${DRIVE_FOLDER_ID}
+      - COLAB_TIMEOUT_MINUTES=30
+      - PORT=3000
+    volumes:
+      - colab_temp:/tmp/colab
+    networks:
+      - job_agent_network
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mongodb
+
   # Redis for caching (optional)
   redis:
     image: redis:7.2-alpine
@@ -230,6 +253,8 @@ volumes:
   mongodb_data:
     driver: local
   resume_uploads:
+    driver: local
+  colab_temp:
     driver: local
 
 networks:
